@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-07T11:04:00Z",
+  "lastUpdated": "2026-07-07T19:22:30.547Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -11,15 +11,18 @@
       "number": 1,
       "name": "Structured Discovery",
       "subtitle": "Unified Intelligence Platform",
-      "projectXTaskIds": [280, 285],
+      "projectXTaskIds": [
+        280,
+        285
+      ],
       "state": "active",
       "type": "fixed",
       "startDate": "2026-06-09",
       "expectedEndDate": "2026-09-05",
       "totalWeeks": 14,
-      "elapsedWeeks": 8,
+      "elapsedWeeks": 4,
       "budgetHours": 1765,
-      "usedHours": 1097,
+      "usedHours": 178,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -35,16 +38,16 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 592,
-          "weekHours": 69
+          "usedHours": 155,
+          "weekHours": 2
         },
         {
           "id": "1b",
           "taskId": 285,
           "name": "Discovery Raivan",
           "label": "1B",
-          "usedHours": 505,
-          "weekHours": 57
+          "usedHours": 23,
+          "weekHours": 0
         }
       ],
       "staff": [
@@ -52,11 +55,17 @@
           "id": "mikeb",
           "name": "Mike B.",
           "role": "Product Director",
-          "hoursThisWeek": 12,
-          "hoursTotal": 184,
+          "hoursThisWeek": 0,
+          "hoursTotal": 14,
           "hoursAllocated": 210,
-          "subphaseHours": { "1a": 90, "1b": 94 },
-          "subphaseWeekHours": { "1a": 6, "1b": 6 }
+          "subphaseHours": {
+            "1a": 6,
+            "1b": 9
+          },
+          "subphaseWeekHours": {
+            "1a": 6,
+            "1b": 6
+          }
         },
         {
           "id": "billyr",
@@ -65,68 +74,110 @@
           "hoursThisWeek": 8,
           "hoursTotal": 98,
           "hoursAllocated": 105,
-          "subphaseHours": { "1a": 50, "1b": 48 },
-          "subphaseWeekHours": { "1a": 4, "1b": 4 }
+          "subphaseHours": {
+            "1a": 50,
+            "1b": 48
+          },
+          "subphaseWeekHours": {
+            "1a": 4,
+            "1b": 4
+          }
         },
         {
           "id": "kevinm",
           "name": "Kevin M.",
           "role": "UX Design Lead",
-          "hoursThisWeek": 36,
-          "hoursTotal": 292,
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
           "hoursAllocated": 350,
-          "subphaseHours": { "1a": 240, "1b": 52 },
-          "subphaseWeekHours": { "1a": 30, "1b": 6 }
+          "subphaseHours": {
+            "1a": 240,
+            "1b": 52
+          },
+          "subphaseWeekHours": {
+            "1a": 30,
+            "1b": 6
+          }
         },
         {
           "id": "tereg",
           "name": "Tere G.",
           "role": "Product Designer",
-          "hoursThisWeek": 34,
-          "hoursTotal": 268,
+          "hoursThisWeek": 2,
+          "hoursTotal": 54,
           "hoursAllocated": 315,
-          "subphaseHours": { "1a": 80, "1b": 188 },
-          "subphaseWeekHours": { "1a": 10, "1b": 24 }
+          "subphaseHours": {
+            "1a": 46,
+            "1b": 1
+          },
+          "subphaseWeekHours": {
+            "1a": 2,
+            "1b": 24
+          }
         },
         {
           "id": "rodril",
           "name": "Rodri L.",
           "role": "Tech Lead / Arch.",
-          "hoursThisWeek": 22,
-          "hoursTotal": 162,
+          "hoursThisWeek": 0,
+          "hoursTotal": 38,
           "hoursAllocated": 210,
-          "subphaseHours": { "1a": 82, "1b": 80 },
-          "subphaseWeekHours": { "1a": 11, "1b": 11 }
+          "subphaseHours": {
+            "1a": 24,
+            "1b": 14
+          },
+          "subphaseWeekHours": {
+            "1a": 11,
+            "1b": 11
+          }
         },
         {
           "id": "sarak",
           "name": "Sarah K.",
           "role": "Project Manager",
-          "hoursThisWeek": 14,
-          "hoursTotal": 93,
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
           "hoursAllocated": 175,
-          "subphaseHours": { "1a": 50, "1b": 43 },
-          "subphaseWeekHours": { "1a": 8, "1b": 6 }
+          "subphaseHours": {
+            "1a": 50,
+            "1b": 43
+          },
+          "subphaseWeekHours": {
+            "1a": 8,
+            "1b": 6
+          }
         },
         {
           "id": "ignaciod",
           "name": "Ignacio D.",
           "role": "Designer",
           "hoursThisWeek": 0,
-          "hoursTotal": 0,
+          "hoursTotal": 8,
           "hoursAllocated": 0,
-          "subphaseHours": { "1a": 0, "1b": 0 },
-          "subphaseWeekHours": { "1a": 0, "1b": 0 }
+          "subphaseHours": {
+            "1a": 8,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 0
+          }
         },
         {
           "id": "luciac",
           "name": "Lucia C.",
           "role": "Designer",
           "hoursThisWeek": 0,
-          "hoursTotal": 0,
+          "hoursTotal": 72,
           "hoursAllocated": 0,
-          "subphaseHours": { "1a": 0, "1b": 0 },
-          "subphaseWeekHours": { "1a": 0, "1b": 0 }
+          "subphaseHours": {
+            "1a": 72,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 0
+          }
         }
       ],
       "milestones": [
@@ -203,7 +254,9 @@
       "number": 2,
       "name": "Platform Fabric",
       "subtitle": "Unified Intelligence Layer",
-      "projectXTaskIds": [281],
+      "projectXTaskIds": [
+        281
+      ],
       "state": "upcoming",
       "type": "fixed",
       "startDate": null,
@@ -231,7 +284,9 @@
       "number": 3,
       "name": "VetLeo MVP",
       "subtitle": "Consumer Mobile Application",
-      "projectXTaskIds": [282],
+      "projectXTaskIds": [
+        282
+      ],
       "state": "upcoming",
       "type": "fixed",
       "startDate": null,
@@ -259,7 +314,9 @@
       "number": 4,
       "name": "Raivan MVP",
       "subtitle": "Clinical Practice Management System",
-      "projectXTaskIds": [283],
+      "projectXTaskIds": [
+        283
+      ],
       "state": "upcoming",
       "type": "fixed",
       "startDate": null,
@@ -287,7 +344,9 @@
       "number": 5,
       "name": "Progressive Intelligence & Marketplace",
       "subtitle": "Month-to-month retainer",
-      "projectXTaskIds": [284],
+      "projectXTaskIds": [
+        284
+      ],
       "state": "upcoming",
       "type": "retainer",
       "startDate": null,
@@ -299,7 +358,8 @@
         "criticalPct": 100
       },
       "staff": [],
-      "milestones": []
+      "milestones": [],
+      "usedHours": 0
     }
   ]
 }
