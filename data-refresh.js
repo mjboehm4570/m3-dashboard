@@ -46,6 +46,9 @@ const TASK_TO_SUBPHASE = {
   285: '1b',
 };
 
+// Entries with task: null are attributed to this task ID (Phase 1A VetLeo Discovery)
+const NULL_TASK_DEFAULT = 280;
+
 /**
  * STAFF NAME MAP — maps ProjectX full_name values to data.json staff IDs.
  * The grouped_by_users endpoint returns full_name (e.g. "Teresita Ambrosio").
@@ -54,11 +57,13 @@ const TASK_TO_SUBPHASE = {
  */
 const STAFF_NAME_TO_ID = {
   'Mike Boehm':        'mikeb',
-  'Billy Reuben':      'billyr',    // ← confirm exact name in ProjectX
-  'Kevin Moran':       'kevinm',    // ← confirm exact name in ProjectX
-  'Teresita Ambrosio': 'tereg',     // confirmed from diagnose output
-  'Rodrigo Lopez':     'rodril',    // ← confirm exact name in ProjectX
-  'Sarah Kovacs':      'sarak',     // ← confirm exact name in ProjectX
+  // Billy Reuben omitted — does not log hours in ProjectX
+  'Kevin Moran':       'kevinm',    // ← confirm exact name once he logs
+  'Teresita Ambrosio': 'tereg',     // confirmed
+  'Rodrigo Pisani':    'rodril',    // confirmed
+  'Sarah Kovacs':      'sarak',     // ← confirm exact name once she logs
+  'Ignacio Dominguez': 'ignaciod',  // confirmed — designer
+  'Lucia Counago':     'luciac',    // confirmed — designer
 };
 
 // ─── HTTP helper ────────────────────────────────────────────────────────────
@@ -199,12 +204,11 @@ async function main() {
 
   // ── 5. Aggregate: hours by task ID ────────────────────────────────────────
   // duration field is in MINUTES — divide by 60 to get hours.
-  // The flat entries endpoint includes a task object; task_id may also be top-level.
+  // Entries with task: null are attributed to NULL_TASK_DEFAULT (Phase 1A VetLeo).
   function hoursFromEntries(entries) {
     const byTask = {};
     for (const e of entries) {
-      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id;
-      if (taskId == null) continue;
+      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id ?? NULL_TASK_DEFAULT;
       byTask[taskId] = (byTask[taskId] || 0) + (e.duration || 0) / 60;
     }
     return byTask;
@@ -236,8 +240,8 @@ async function main() {
     const byUserTask = {};
     for (const e of entries) {
       const name   = fullNameFromEntry(e);
-      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id;
-      if (!name || taskId == null) continue;
+      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id ?? NULL_TASK_DEFAULT;
+      if (!name) continue;
       if (!byUserTask[name]) byUserTask[name] = {};
       byUserTask[name][taskId] = (byUserTask[name][taskId] || 0) + (e.duration || 0) / 60;
     }

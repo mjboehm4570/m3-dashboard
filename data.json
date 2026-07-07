@@ -107,6 +107,26 @@
           "hoursAllocated": 175,
           "subphaseHours": { "1a": 50, "1b": 43 },
           "subphaseWeekHours": { "1a": 8, "1b": 6 }
+        },
+        {
+          "id": "ignaciod",
+          "name": "Ignacio D.",
+          "role": "Designer",
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": { "1a": 0, "1b": 0 },
+          "subphaseWeekHours": { "1a": 0, "1b": 0 }
+        },
+        {
+          "id": "luciac",
+          "name": "Lucia C.",
+          "role": "Designer",
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": { "1a": 0, "1b": 0 },
+          "subphaseWeekHours": { "1a": 0, "1b": 0 }
         }
       ],
       "milestones": [
