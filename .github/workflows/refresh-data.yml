@@ -1,0 +1,43 @@
+name: Nightly Data Refresh
+
+on:
+  # Runs at 6:00 AM Central Time
+  # CDT (UTC-5) → 11:00 UTC  |  CST (UTC-6) → 12:00 UTC
+  # Using 11:00 UTC covers CDT; adjust to 12:00 in winter if preferred
+  schedule:
+    - cron: '0 11 * * *'
+
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit data.json back to the repo
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run data refresh
+        env:
+          PROJECTX_API_KEY: ${{ secrets.PROJECTX_API_KEY }}
+        run: node data-refresh.js
+
+      - name: Commit updated data.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          # Only commit if data.json actually changed
+          git diff --staged --quiet && echo "No changes to data.json — skipping commit" || \
+            git commit -m "chore: nightly data refresh $(date -u '+%Y-%m-%d %H:%M UTC')"
+
+      - name: Push changes
+        run: git push
