@@ -274,9 +274,67 @@ async function main() {
 
   const foundUsers = Object.keys(staffTotalsAll);
   console.log(`[data-refresh] ProjectX users found (${foundUsers.length}):`, foundUsers.join(', ') || '(none)');
-  if (foundUsers.length > 0) {
-    const unmapped = foundUsers.filter(n => !STAFF_NAME_TO_ID[n]);
-    if (unmapped.length) console.log('  ⚠ Not in STAFF_NAME_TO_ID map:', unmapped.join(', '));
+
+  // ── 7b. Auto-discover new staff members ───────────────────────────────────
+  // Any ProjectX user not yet in STAFF_NAME_TO_ID or data.json is auto-added
+  // to the appropriate phase with default values (role: "Team Member", allocated: 0).
+  // The PM updates role and allocation in the dashboard — no code change needed.
+
+  function generateStaffId(fullName) {
+    const parts = fullName.toLowerCase().replace(/[^a-z ]/g, '').split(' ');
+    return (parts[0].slice(0, 6) + (parts[1] || '').slice(0, 1)).slice(0, 8);
+  }
+
+  function formatDisplayName(fullName) {
+    const parts = fullName.trim().split(' ');
+    return `${parts[0]} ${(parts[1] || '').charAt(0)}.`.trim();
+  }
+
+  // Build set of staff IDs already in data.json (across all phases)
+  const existingStaffIds = new Set(
+    existing.phases.flatMap(p => (p.staff || []).map(s => s.id))
+  );
+
+  for (const pxName of foundUsers) {
+    // Skip if already mapped or already in data.json
+    if (STAFF_NAME_TO_ID[pxName]) continue;
+
+    const newId = generateStaffId(pxName);
+    if (existingStaffIds.has(newId)) {
+      // ID collision: use full-name slug instead
+      const slug = pxName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '');
+      STAFF_NAME_TO_ID[pxName] = slug;
+    } else {
+      STAFF_NAME_TO_ID[pxName] = newId;
+    }
+    existingStaffIds.add(STAFF_NAME_TO_ID[pxName]);
+
+    // Find which phase this person logged against
+    const userTaskIds = Object.keys(staffTaskAll[pxName] || {}).map(Number);
+    const targetPhaseId = Object.entries(PHASE_TASK_IDS).find(([, tids]) =>
+      tids.some(tid => userTaskIds.includes(tid))
+    )?.[0] || 'phase1';
+
+    const targetPhase = existing.phases.find(p => p.id === targetPhaseId);
+    if (!targetPhase) continue;
+    if (!targetPhase.staff) targetPhase.staff = [];
+
+    const subphaseHoursDefaults = Object.fromEntries(
+      Object.values(TASK_TO_SUBPHASE).map(spId => [spId, 0])
+    );
+
+    targetPhase.staff.push({
+      id:   STAFF_NAME_TO_ID[pxName],
+      name: formatDisplayName(pxName),
+      role: 'Team Member',   // PM: update role in dashboard
+      hoursThisWeek:    0,
+      hoursTotal:       0,
+      hoursAllocated:   0,   // PM: set allocation in dashboard
+      subphaseHours:     { ...subphaseHoursDefaults },
+      subphaseWeekHours: { ...subphaseHoursDefaults },
+    });
+
+    console.log(`[data-refresh] ✨ Auto-added new staff: ${pxName} → id "${STAFF_NAME_TO_ID[pxName]}" on ${targetPhaseId}`);
   }
 
   // ── 8. Patch each phase ───────────────────────────────────────────────────
