@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M3 Phase Tracker · Dualboot</title>
+<!--
+  DATA: reads from ./data.json on load
+  AUTH: two passwords — TEAM_PW (summary) and FULL_PW (drill-down)
+  MILESTONES: edits stored in localStorage until Airtable is wired
+  DEPLOY: static — drop index.html + data.json into Vercel, Netlify, or S3
+
+  Passwords (change before distributing):
+    Team view:        m3-team-2026
+    Leadership view:  m3-lead-2026
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#F1F5F9;color:#1E293B;font-size:14px;min-height:100vh}
+
+/* ─── LOADING ─── */
+#loading-screen{position:fixed;inset:0;background:#F1F5F9;display:flex;align-items:center;justify-content:center;z-index:2000;flex-direction:column;gap:16px}
+.spinner{width:32px;height:32px;border:3px solid #E2E8F0;border-top-color:#6366F1;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:#94A3B8;font-weight:500}
+
+/* ─── ERROR ─── */
+#error-screen{position:fixed;inset:0;background:#F1F5F9;display:none;align-items:center;justify-content:center;z-index:2000;flex-direction:column;gap:12px;text-align:center;padding:40px}
+.error-icon{font-size:40px}
+.error-title{font-size:18px;font-weight:700;color:#1E293B}
+.error-sub{font-size:13px;color:#64748B;max-width:400px;line-height:1.6}
+.error-retry{margin-top:8px;padding:10px 24px;background:#1E293B;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+
+/* ─── LOGIN ─── */
+#login-overlay{position:fixed;inset:0;background:#F1F5F9;display:none;align-items:center;justify-content:center;z-index:1000}
+#login-overlay.visible{display:flex}
+.login-card{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:44px 52px;width:400px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.1)}
+.login-logo{font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:22px}
+.login-title{font-size:22px;font-weight:700;color:#1E293B;margin-bottom:4px}
+.login-subtitle{font-size:13px;color:#94A3B8;margin-bottom:32px;line-height:1.5}
+.login-input{width:100%;padding:11px 14px;border:1.5px solid #E2E8F0;border-radius:8px;font-size:14px;color:#1E293B;outline:none;margin-bottom:12px;transition:border-color .15s}
+.login-input:focus{border-color:#6366F1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.login-btn{width:100%;padding:12px;background:#1E293B;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}
+.login-btn:hover{background:#334155}
+.login-error{font-size:12px;color:#EF4444;margin-top:10px;display:none;font-weight:500}
+.login-note{font-size:11px;color:#CBD5E1;margin-top:24px;line-height:1.5}
+
+/* ─── MAIN ─── */
+#app{display:none}
+#app.visible{display:block}
+
+/* ─── NAV ─── */
+.topbar{background:#fff;border-bottom:1px solid #E2E8F0;padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-logo{font-size:13px;font-weight:700;color:#64748B;letter-spacing:.08em;text-transform:uppercase}
+.topbar-div{width:1px;height:20px;background:#E2E8F0}
+.topbar-title{font-size:14px;font-weight:600;color:#1E293B}
+.topbar-client{font-size:12px;color:#94A3B8;margin-left:4px}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.nav-tabs{display:flex;gap:2px;background:#F1F5F9;border-radius:8px;padding:3px}
+.nav-tab{padding:6px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#64748B;transition:all .15s}
+.nav-tab.active{background:#fff;color:#1E293B;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.nav-tab:hover:not(.active){color:#334155}
+.role-badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.role-badge .rdot{width:6px;height:6px;border-radius:50%}
+.role-badge.team{background:#F0FDF4;border-color:#86EFAC;color:#166534}
+.role-badge.team .rdot{background:#22C55E}
+.role-badge.full{background:#EEF2FF;border-color:#C7D2FE;color:#4338CA}
+.role-badge.full .rdot{background:#6366F1}
+.logout-btn{font-size:12px;color:#94A3B8;background:none;border:none;cursor:pointer;font-weight:500;padding:4px 8px;border-radius:4px}
+.logout-btn:hover{color:#1E293B;background:#F1F5F9}
+
+/* ─── PAGES ─── */
+.page{display:none;padding:28px 32px;max-width:1200px;margin:0 auto}
+.page.active{display:block}
+
+/* ─── ROLE VISIBILITY ─── */
+body[data-role="team"] .full-only{display:none!important}
+body[data-role="full"] .team-only{display:none!important}
+
+/* ─── FRESHNESS ─── */
+.freshness-note{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748B}
+.freshness-dot{width:7px;height:7px;background:#10B981;border-radius:50%;flex-shrink:0}
+
+/* ─── HEALTH BANNER ─── */
+.health-banner{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 20px;display:flex;align-items:center;gap:24px;margin-bottom:24px;flex-wrap:wrap}
+.banner-label{font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em}
+.banner-stat{display:flex;align-items:center;gap:8px}
+.banner-dot{width:8px;height:8px;border-radius:50%}
+.banner-dot.green{background:#10B981}
+.banner-dot.yellow{background:#F59E0B}
+.banner-dot.red{background:#EF4444}
+.banner-dot.gray{background:#CBD5E1}
+.banner-num{font-size:15px;font-weight:700;color:#1E293B}
+.banner-text{font-size:13px;color:#64748B}
+.banner-div{width:1px;height:24px;background:#E2E8F0}
+.banner-alert{margin-left:auto;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:5px 12px;font-size:12px;color:#92400E;font-weight:500}
+
+/* ─── SECTION LABEL ─── */
+.section-label{font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+
+/* ─── PHASE CARDS ─── */
+.phase-grid{display:flex;flex-direction:column;gap:12px}
+.phase-row{display:flex;gap:12px}
+.phase-row.concurrent{position:relative;margin-top:10px}
+.concurrent-label{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#EEF2FF;border:1px solid #C7D2FE;border-radius:20px;font-size:11px;color:#6366F1;padding:2px 10px;font-weight:600;white-space:nowrap;z-index:2}
+.phase-card{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:18px 20px;flex:1;cursor:pointer;transition:box-shadow .15s,border-color .15s;position:relative}
+.phase-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.07);border-color:#CBD5E1}
+.phase-card.state-active{border-left:3px solid #3B82F6}
+.phase-card.state-at-risk{border-left:3px solid #F59E0B}
+.phase-card.state-critical{border-left:3px solid #EF4444}
+.phase-card.state-upcoming{opacity:.75}
+.phase-card.state-complete{border-left:3px solid #10B981}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.card-phase-num{font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em}
+.card-name{font-size:14px;font-weight:600;color:#1E293B;margin-top:2px}
+.card-sub{font-size:12px;color:#94A3B8;margin-top:1px}
+.status-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.badge-active{background:#DBEAFE;color:#1D4ED8}
+.badge-at-risk{background:#FFFBEB;color:#B45309}
+.badge-critical{background:#FEE2E2;color:#991B1B}
+.badge-upcoming{background:#F1F5F9;color:#64748B}
+.badge-complete{background:#DCFCE7;color:#166534}
+.card-dates{font-size:12px;color:#64748B;margin-bottom:12px}
+.card-metrics{display:flex;gap:20px;margin-bottom:14px}
+.metric-item{flex:1}
+.metric-label{font-size:11px;color:#94A3B8;margin-bottom:2px;font-weight:500}
+.metric-value{font-size:14px;font-weight:700;color:#1E293B}
+.metric-sub{font-size:11px;color:#94A3B8;margin-top:1px}
+
+/* ─── COMPACT GAUGE ─── */
+.gauge-compact{margin-top:4px}
+.gauge-row-c{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.gauge-row-c:last-child{margin-bottom:0}
+.gauge-label-c{font-size:11px;color:#64748B;width:72px;flex-shrink:0}
+.gauge-track-c{flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden}
+.gauge-fill-c{height:100%;border-radius:3px;transition:width .3s}
+.fill-burn{background:#F87171}
+.fill-time{background:#94A3B8}
+.fill-progress{background:#34D399}
+.gauge-pct-c{font-size:11px;font-weight:700;width:30px;text-align:right;flex-shrink:0}
+.pct-burn{color:#EF4444}
+.pct-time{color:#64748B}
+.pct-progress{color:#10B981}
+.card-alert-strip{margin-top:12px;padding:7px 10px;background:#FFFBEB;border-radius:6px;font-size:11px;color:#92400E;font-weight:500;display:flex;align-items:center;gap:6px}
+
+/* ─── RETAINER CARD ─── */
+.retainer-card{display:flex;gap:20px}
+.retainer-section{flex:1}
+.retainer-divider{width:1px;background:#E2E8F0}
+
+/* ─── BACK BTN ─── */
+.back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#64748B;background:none;border:none;cursor:pointer;padding:0;margin-bottom:20px;font-weight:500}
+.back-btn:hover{color:#1E293B}
+
+/* ─── DETAIL HEADER ─── */
+.detail-header{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:20px 24px;margin-bottom:16px}
+.detail-header-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.detail-phase-label{font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.detail-phase-name{font-size:20px;font-weight:700;color:#1E293B}
+.detail-phase-sub{font-size:13px;color:#94A3B8;margin-top:3px}
+.detail-header-right{text-align:right}
+.detail-week{font-size:13px;color:#64748B;margin-bottom:4px}
+.detail-dates{font-size:13px;font-weight:600;color:#1E293B}
+.detail-metrics-row{display:flex;gap:16px}
+.detail-metric-box{flex:1;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px}
+.dm-label{font-size:11px;color:#94A3B8;font-weight:500;margin-bottom:4px}
+.dm-value{font-size:18px;font-weight:700;color:#1E293B}
+.dm-sub{font-size:11px;color:#64748B;margin-top:2px}
+.dm-sub.warning{color:#F59E0B}
+.dm-sub.danger{color:#EF4444}
+
+/* ─── FULL GAUGE ─── */
+.gauge-panel{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:20px 24px;margin-bottom:16px}
+.gauge-panel-title{font-size:13px;font-weight:700;color:#1E293B;margin-bottom:16px}
+.gauge-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.gauge-row:last-of-type{margin-bottom:0}
+.gauge-label{font-size:12px;color:#64748B;font-weight:500;width:150px;flex-shrink:0}
+.gauge-track{flex:1;height:10px;background:#F1F5F9;border-radius:5px;overflow:hidden}
+.gauge-fill{height:100%;border-radius:5px;transition:width .4s}
+.gauge-pct{font-size:13px;font-weight:700;width:38px;text-align:right;flex-shrink:0}
+.gauge-desc{font-size:11px;color:#94A3B8;width:140px;flex-shrink:0}
+.gauge-divider{border:none;border-top:1px solid #F1F5F9;margin:14px 0}
+.gauge-narrative{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-top:14px;line-height:1.6}
+.gauge-narrative strong{color:#92400E}
+.gauge-narrative-ok{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;margin-top:14px;line-height:1.6}
+
+/* ─── ALERTS ─── */
+.alerts-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.alert-chip{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:8px;font-size:12px;font-weight:500;flex:1;min-width:200px}
+.chip-green{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534}
+.chip-yellow{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E}
+.chip-red{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}
+.chip-blue{background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8}
+.chip-gray{background:#F8FAFC;border:1px solid #E2E8F0;color:#64748B}
+.chip-icon{font-size:16px}
+.chip-title{font-weight:700;font-size:12px}
+.chip-sub{font-size:11px;opacity:.8;margin-top:1px}
+
+/* ─── SUBPHASE SELECTOR ─── */
+.subphase-selector{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.subphase-label{font-size:12px;font-weight:600;color:#64748B;white-space:nowrap}
+.subphase-tabs{display:flex;gap:2px;background:#F1F5F9;border-radius:7px;padding:3px}
+.subtab{padding:5px 14px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#64748B;transition:all .15s}
+.subtab.active{background:#fff;color:#1E293B;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.subtab:hover:not(.active){color:#334155}
+.subphase-split{display:flex;align-items:center;gap:12px;margin-left:auto}
+.split-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748B}
+.split-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.subphase-note-bar{background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:7px 12px;font-size:12px;color:#4338CA;font-weight:500;display:none;margin-bottom:12px;align-items:center;gap:6px}
+
+/* ─── SUBPHASE SUMMARY (team) ─── */
+.subphase-summary-bar{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.ssb-label{font-size:12px;font-weight:600;color:#64748B;white-space:nowrap}
+.ssb-items{display:flex;gap:24px}
+.ssb-item{display:flex;align-items:center;gap:8px}
+.ssb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ssb-main{font-size:13px;color:#1E293B;font-weight:600}
+.ssb-sub{font-size:11px;color:#94A3B8;margin-top:1px}
+.ssb-divider{width:1px;height:32px;background:#E2E8F0}
+
+/* ─── PANELS ─── */
+.panel{background:#fff;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:16px;overflow:hidden}
+.panel-header{padding:14px 20px;border-bottom:1px solid #F1F5F9;display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:13px;font-weight:700;color:#1E293B}
+.panel-toggle{font-size:12px;color:#6366F1;font-weight:500;cursor:pointer;background:none;border:none;padding:0}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;padding:10px 20px;text-align:left;background:#F8FAFC;border-bottom:1px solid #E2E8F0}
+td{padding:11px 20px;border-bottom:1px solid #F8FAFC;font-size:13px;color:#1E293B;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFAFA}
+.role-tag{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:#F1F5F9;color:#64748B;margin-top:2px}
+.alloc-bar{width:80px;height:5px;background:#E2E8F0;border-radius:3px;overflow:hidden}
+.alloc-fill{height:100%;border-radius:3px}
+.alloc-ok{background:#34D399}
+.alloc-warn{background:#FBBF24}
+.alloc-risk{background:#F87171}
+.staff-pct{font-size:12px;font-weight:700;margin-top:3px}
+.sms-bar{width:48px;height:5px;background:#E2E8F0;border-radius:3px;overflow:hidden;display:flex;flex-shrink:0}
+.sms-fill-a{background:#6366F1;height:100%}
+.sms-fill-b{background:#F59E0B;height:100%}
+
+/* ─── MILESTONES ─── */
+.ms-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px}
+.ms-complete{background:#DCFCE7;color:#166534}
+.ms-inprogress{background:#DBEAFE;color:#1D4ED8}
+.ms-notstarted{background:#F1F5F9;color:#94A3B8}
+.ms-blocked{background:#FEE2E2;color:#991B1B}
+.ms-type{font-size:10px;color:#94A3B8;font-weight:600;text-transform:uppercase}
+.ms-bar-wrap{display:flex;align-items:center;gap:8px}
+.ms-bar{width:80px;height:5px;background:#E2E8F0;border-radius:3px;overflow:hidden}
+.ms-fill{height:100%;background:#6366F1;border-radius:3px}
+.ms-pct{font-size:12px;font-weight:600;color:#6366F1}
+.pm-edit-btn{font-size:11px;color:#6366F1;background:none;border:none;cursor:pointer;font-weight:600;padding:2px 6px;border-radius:4px}
+.pm-edit-btn:hover{background:#EEF2FF}
+.add-row-btn{display:flex;align-items:center;gap:6px;padding:10px 20px;font-size:12px;color:#6366F1;font-weight:600;cursor:pointer;background:none;border:none;width:100%;text-align:left;border-top:1px solid #F1F5F9}
+.add-row-btn:hover{background:#F8FAFC}
+.phase-completion-summary{background:#F8FAFC;border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.pcs-label{font-size:12px;color:#64748B;font-weight:600}
+.pcs-bar-wrap{flex:1;height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden}
+.pcs-bar-fill{height:100%;background:#6366F1;border-radius:4px}
+.pcs-pct{font-size:13px;font-weight:800;color:#6366F1}
+.pcs-count{font-size:11px;color:#94A3B8}
+
+/* ─── UPCOMING DETAIL STATE ─── */
+.upcoming-detail{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:48px 32px;text-align:center;margin-bottom:16px}
+.upcoming-icon{font-size:40px;margin-bottom:16px}
+.upcoming-title{font-size:18px;font-weight:700;color:#1E293B;margin-bottom:8px}
+.upcoming-sub{font-size:13px;color:#64748B;line-height:1.6;max-width:480px;margin:0 auto 20px}
+.upcoming-stats{display:flex;gap:24px;justify-content:center;margin-top:24px}
+.upcoming-stat{text-align:center}
+.upcoming-stat-val{font-size:20px;font-weight:800;color:#1E293B}
+.upcoming-stat-label{font-size:11px;color:#94A3B8;margin-top:2px;font-weight:500}
+
+/* ─── PHASE 5 RETAINER ─── */
+.retainer-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.retainer-panel{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:20px 24px}
+.retainer-panel-title{font-size:13px;font-weight:700;color:#1E293B;margin-bottom:16px}
+.ret-metric{margin-bottom:12px}
+.ret-metric:last-child{margin-bottom:0}
+.ret-label{font-size:11px;color:#94A3B8;font-weight:500;margin-bottom:3px}
+.ret-value{font-size:22px;font-weight:700;color:#1E293B}
+.ret-sub{font-size:12px;color:#64748B;margin-top:2px}
+
+/* ─── MODAL ─── */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:500}
+.modal-overlay.visible{display:flex}
+.modal{background:#fff;border-radius:12px;padding:28px 32px;width:480px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-title{font-size:16px;font-weight:700;color:#1E293B;margin-bottom:20px}
+.form-row{margin-bottom:16px}
+.form-label{font-size:12px;font-weight:600;color:#64748B;margin-bottom:6px;display:block}
+.form-input,.form-select,.form-textarea{width:100%;padding:9px 12px;border:1.5px solid #E2E8F0;border-radius:7px;font-size:13px;color:#1E293B;outline:none;transition:border-color .15s;font-family:inherit}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:#6366F1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+.form-textarea{resize:vertical;min-height:72px}
+.form-row-split{display:flex;gap:12px}
+.form-row-split .form-row{flex:1;margin-bottom:0}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+.btn-secondary{padding:9px 18px;background:#F1F5F9;color:#64748B;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-primary{padding:9px 18px;background:#1E293B;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-primary:hover{background:#334155}
+.btn-danger{padding:9px 18px;background:#FEF2F2;color:#991B1B;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;margin-right:auto}
+.range-wrap{display:flex;align-items:center;gap:12px}
+.range-wrap input[type=range]{flex:1;accent-color:#6366F1}
+.range-val{font-size:14px;font-weight:700;color:#6366F1;width:38px;text-align:right}
+
+/* ─── UTILS ─── */
+.text-muted{color:#94A3B8}
+.text-sm{font-size:12px}
+.fw-bold{font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading M3 dashboard…</div>
+</div>
+
+<!-- ERROR -->
+<div id="error-screen">
+  <div class="error-icon">⚠️</div>
+  <div class="error-title">Could not load dashboard data</div>
+  <div class="error-sub">Make sure <code>data.json</code> is in the same directory as this file and the server is running.<br><br>If running locally, open via a local server (e.g. <code>npx serve .</code>) rather than directly from the filesystem.</div>
+  <button class="error-retry" onclick="loadData()">Retry</button>
+</div>
+
+<!-- LOGIN -->
+<div id="login-overlay" class="visible">
+  <div class="login-card">
+    <div class="login-logo">Dualboot Partners</div>
+    <div class="login-title">M3 Phase Tracker</div>
+    <div class="login-subtitle">Internal use only.<br>Enter your access password to continue.</div>
+    <input type="password" id="pw-input" class="login-input" placeholder="Enter password" />
+    <button class="login-btn" onclick="tryLogin()">Access Dashboard →</button>
+    <div id="pw-error" class="login-error">Incorrect password. Try again.</div>
+    <div class="login-note">Two access levels available.<br>Contact your project lead if you need access.</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-logo">Dualboot</span>
+      <div class="topbar-div"></div>
+      <span class="topbar-title">M3 Engagement</span>
+      <span class="topbar-client">· Phase Tracker</span>
+    </div>
+    <div class="topbar-right">
+      <div class="nav-tabs">
+        <button class="nav-tab active" id="tab-overview" onclick="showPage('overview',this)">Program Overview</button>
+        <button class="nav-tab" id="tab-detail" onclick="showPage('detail',this)" style="display:none">Phase Detail</button>
+      </div>
+      <div id="role-badge" class="role-badge team">
+        <span class="rdot"></span>
+        <span id="role-badge-text">Team View</span>
+      </div>
+      <button class="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <div id="page-overview" class="page active"></div>
+  <div id="page-detail" class="page"></div>
+</div>
+
+<!-- MILESTONE EDIT MODAL -->
+<div id="modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Edit Milestone</div>
+    <div id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn-danger" id="modal-delete-btn" onclick="deleteMilestone()">Delete</button>
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveMilestone()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════
+const TEAM_PW = 'm3-team-2026';
+const FULL_PW = 'm3-lead-2026';
+const DATA_URL = './data.json';
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let D = null;           // loaded data
+let role = null;
+let currentPage = 'overview';
+let selectedPhaseId = null;
+let subphase = 'all';
+let editingMilestone = null;  // { phaseId, milestoneId }
+
+// localStorage overrides for milestone edits
+function getOverrides() {
+  try { return JSON.parse(localStorage.getItem('m3-overrides') || '{}'); } catch(e) { return {}; }
+}
+function saveOverrides(o) {
+  localStorage.setItem('m3-overrides', JSON.stringify(o));
+}
+function applyOverrides(data) {
+  const o = getOverrides();
+  data.phases.forEach(phase => {
+    if (o[phase.id + '.milestones']) {
+      phase.milestones = o[phase.id + '.milestones'];
+    }
+  });
+  return data;
+}
+
+// ═══════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════
+function loadData() {
+  document.getElementById('loading-screen').style.display = 'flex';
+  document.getElementById('error-screen').style.display = 'none';
+  fetch(DATA_URL)
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(data => {
+      D = applyOverrides(data);
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('login-overlay').classList.add('visible');
+    })
+    .catch(() => {
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('error-screen').style.display = 'flex';
+    });
+}
+
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+function tryLogin() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw === TEAM_PW) { setRole('team'); }
+  else if (pw === FULL_PW) { setRole('full'); }
+  else {
+    document.getElementById('pw-error').style.display = 'block';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+function setRole(r) {
+  role = r;
+  document.body.dataset.role = r;
+  document.getElementById('login-overlay').classList.remove('visible');
+  document.getElementById('app').classList.add('visible');
+  const badge = document.getElementById('role-badge');
+  badge.className = 'role-badge ' + r;
+  document.getElementById('role-badge-text').textContent = r === 'full' ? 'Leadership View' : 'Team View';
+  renderOverview();
+}
+
+function logout() {
+  role = null;
+  document.body.dataset.role = '';
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('pw-input').value = '';
+  document.getElementById('pw-error').style.display = 'none';
+  document.getElementById('login-overlay').classList.add('visible');
+  showPage('overview', document.getElementById('tab-overview'));
+  document.getElementById('tab-detail').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  loadData();
+});
+
+// ═══════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════
+function showPage(id, tabEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
+  currentPage = id;
+  window.scrollTo(0, 0);
+}
+
+function goToPhase(phaseId) {
+  selectedPhaseId = phaseId;
+  subphase = 'all';
+  renderDetail(phaseId);
+  const tab = document.getElementById('tab-detail');
+  tab.style.display = '';
+  const phase = D.phases.find(p => p.id === phaseId);
+  tab.textContent = 'Phase ' + phase.number + ' Detail';
+  showPage('detail', tab);
+}
+
+function goToOverview() {
+  showPage('overview', document.getElementById('tab-overview'));
+}
+
+// ═══════════════════════════════════════════
+// COMPUTED
+// ═══════════════════════════════════════════
+function burnPct(phase) {
+  return phase.budgetHours > 0 ? (phase.usedHours / phase.budgetHours) * 100 : 0;
+}
+function timePct(phase) {
+  if (!phase.totalWeeks || phase.elapsedWeeks === 0) return 0;
+  return Math.min((phase.elapsedWeeks / phase.totalWeeks) * 100, 100);
+}
+function deliverablePct(milestones) {
+  if (!milestones || milestones.length === 0) return null;
+  return Math.round(milestones.reduce((s, m) => s + m.completionPct, 0) / milestones.length);
+}
+function weeklyBurnRate(phase) {
+  if (!phase.elapsedWeeks || phase.elapsedWeeks === 0) return 0;
+  return Math.round(phase.usedHours / phase.elapsedWeeks);
+}
+function weeksRemaining(phase) {
+  const rate = weeklyBurnRate(phase);
+  if (rate === 0) return null;
+  return ((phase.budgetHours - phase.usedHours) / rate).toFixed(1);
+}
+function phaseHealthState(phase) {
+  if (phase.state !== 'active') return phase.state;
+  const bp = burnPct(phase);
+  const tp = timePct(phase);
+  const dp = deliverablePct(phase.milestones);
+  const t = phase.alertThresholds;
+  const bd = bp - tp;
+  const pg = dp !== null ? bp - dp : 0;
+  if (bp >= t.criticalPct || bd >= t.paceCritDelta || pg >= t.progressGapCrit) return 'critical';
+  if (bp >= t.warnPct || bd >= t.paceWarnDelta || pg >= t.progressGapWarn) return 'at-risk';
+  return 'on-track';
+}
+
+function fmt(n) { return n.toLocaleString(); }
+function pct(n) { return Math.round(n) + '%'; }
+
+// ═══════════════════════════════════════════
+// OVERVIEW
+// ═══════════════════════════════════════════
+function renderOverview() {
+  const phases = D.phases;
+  let onTrack = 0, atRisk = 0, upcoming = 0, complete = 0;
+  phases.forEach(p => {
+    const s = phaseHealthState(p);
+    if (s === 'on-track') onTrack++;
+    else if (s === 'at-risk' || s === 'critical') atRisk++;
+    else if (s === 'upcoming') upcoming++;
+    else if (s === 'complete') complete++;
+  });
+
+  const lastUpdated = new Date(D.lastUpdated);
+  const freshStr = lastUpdated.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) +
+    ' ' + lastUpdated.toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+
+  const atRiskPhase = phases.find(p => phaseHealthState(p) === 'at-risk' || phaseHealthState(p) === 'critical');
+
+  let html = `
+    <div class="health-banner">
+      <span class="banner-label">Program Health</span>
+      <div class="banner-stat"><div class="banner-dot green"></div><span class="banner-num">${onTrack}</span><span class="banner-text">On Track</span></div>
+      <div class="banner-div"></div>
+      <div class="banner-stat"><div class="banner-dot yellow"></div><span class="banner-num">${atRisk}</span><span class="banner-text">At Risk</span></div>
+      <div class="banner-div"></div>
+      <div class="banner-stat"><div class="banner-dot gray"></div><span class="banner-num">${upcoming}</span><span class="banner-text">Upcoming</span></div>
+      <div class="banner-div"></div>
+      <div class="freshness-note">
+        <div class="freshness-dot"></div>
+        <span>Data as of <strong>${freshStr}</strong> · Syncs nightly from ProjectX</span>
+      </div>
+      ${atRiskPhase ? `<div class="banner-alert">⚠️ Phase ${atRiskPhase.number} at risk — click card to view</div>` : ''}
+    </div>
+    <div class="section-label">All Phases</div>
+    <div class="phase-grid">`;
+
+  // Group phases: 1 solo, 2+3 concurrent, 4 solo, 5 solo
+  const solo = [phases[0], phases[3], phases[4]];
+  const concurrent = [phases[1], phases[2]];
+
+  html += renderPhaseCard(phases[0]);
+  html += `<div class="phase-row concurrent"><div class="concurrent-label">⇄ Running Concurrently</div>${renderPhaseCard(phases[1])}${renderPhaseCard(phases[2])}</div>`;
+  html += renderPhaseCard(phases[3]);
+  html += renderPhaseCard(phases[4]);
+  html += `</div>`;
+
+  document.getElementById('page-overview').innerHTML = html;
+}
+
+function renderPhaseCard(phase) {
+  const health = phaseHealthState(phase);
+  const bp = burnPct(phase);
+  const tp = timePct(phase);
+  const dp = deliverablePct(phase.milestones);
+
+  const badgeMap = {
+    'on-track': ['badge-active','Active'],
+    'at-risk': ['badge-at-risk','⚠ At Risk'],
+    'critical': ['badge-critical','🔴 Critical'],
+    'upcoming': ['badge-upcoming','Upcoming'],
+    'complete': ['badge-complete','Complete']
+  };
+  const [badgeCls, badgeLabel] = badgeMap[health] || badgeMap['upcoming'];
+
+  const dateStr = phase.startDate
+    ? `${fmtDate(phase.startDate)} → ${phase.expectedEndDate ? fmtDate(phase.expectedEndDate) : 'TBD'} · <strong>Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</strong>`
+    : phase.expectedStartDate
+    ? `Est. start: ${fmtDate(phase.expectedStartDate)} · <strong>${phase.totalWeeks} weeks</strong>`
+    : `Est. start: TBD · <strong>${phase.totalWeeks} weeks</strong>`;
+
+  const subLabel = phase.subphases && phase.subphases.length > 0
+    ? phase.subphases.map(s => s.label + ': ' + s.name).join(' · ')
+    : phase.subtitle;
+
+  let gaugeOpacity = health === 'upcoming' ? 'opacity:.45;pointer-events:none' : '';
+
+  let cardContent = '';
+
+  if (phase.type === 'retainer') {
+    cardContent = `
+      <div class="retainer-card">
+        <div class="retainer-section">
+          <div class="metric-label" style="margin-bottom:4px">Monthly Cap</div>
+          <div class="metric-value">${fmt(phase.monthlyCapHours)} hrs</div>
+          <div class="metric-sub">Per month · adjustable</div>
+        </div>
+        <div class="retainer-divider"></div>
+        <div class="retainer-section" style="padding-left:20px">
+          <div class="metric-label" style="margin-bottom:4px">Tracking Model</div>
+          <div style="font-size:13px;color:#64748B;margin-top:4px;line-height:1.4">Rolling monthly view with cumulative history. Activates when Phase 4 completes.</div>
+        </div>
+      </div>`;
+  } else {
+    const wr = weeksRemaining(phase);
+    cardContent = `
+      <div class="card-metrics">
+        <div class="metric-item">
+          <div class="metric-label">Hours Used</div>
+          <div class="metric-value">${fmt(phase.usedHours)}</div>
+          <div class="metric-sub">of ${fmt(phase.budgetHours)} hrs</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-label">Hrs Remaining</div>
+          <div class="metric-value">${fmt(phase.budgetHours - phase.usedHours)}</div>
+          <div class="metric-sub">${wr ? '~'+wr+' wks at pace' : 'Not started'}</div>
+        </div>
+        ${phase.usedHours > 0 ? `<div class="metric-item">
+          <div class="metric-label">Avg Weekly Burn</div>
+          <div class="metric-value">${fmt(weeklyBurnRate(phase))} hrs</div>
+          <div class="metric-sub">trailing avg</div>
+        </div>` : ''}
+      </div>
+      <div class="gauge-compact" style="${gaugeOpacity}">
+        ${gaugeRowC('Hrs Burned', bp, 'fill-burn', 'pct-burn')}
+        ${gaugeRowC('Time Elapsed', tp, 'fill-time', 'pct-time')}
+        ${dp !== null ? gaugeRowC('Deliverables', dp, 'fill-progress', 'pct-progress') : gaugeRowC('Deliverables', 0, 'fill-progress', 'pct-progress', true)}
+      </div>
+      ${alertStrip(phase)}`;
+  }
+
+  return `<div class="phase-row" style="flex:1">
+    <div class="phase-card state-${health}" onclick="goToPhase('${phase.id}')">
+      <div class="card-top">
+        <div>
+          <div class="card-phase-num">Phase ${phase.number}</div>
+          <div class="card-name">${phase.name}</div>
+          <div class="card-sub">${subLabel}</div>
+        </div>
+        <span class="status-badge ${badgeCls}">${badgeLabel}</span>
+      </div>
+      <div class="card-dates">${dateStr}</div>
+      ${cardContent}
+    </div>
+  </div>`;
+}
+
+function gaugeRowC(label, val, fillCls, pctCls, empty) {
+  return `<div class="gauge-row-c">
+    <span class="gauge-label-c">${label}</span>
+    <div class="gauge-track-c"><div class="gauge-fill-c ${fillCls}" style="width:${empty ? 0 : Math.min(val,100)}%"></div></div>
+    <span class="gauge-pct-c ${pctCls}">${empty ? '—' : pct(val)}</span>
+  </div>`;
+}
+
+function alertStrip(phase) {
+  const health = phaseHealthState(phase);
+  if (health !== 'at-risk' && health !== 'critical') return '';
+  const bp = burnPct(phase);
+  const tp = timePct(phase);
+  const dp = deliverablePct(phase.milestones);
+  const pg = dp !== null ? Math.round(bp - dp) : 0;
+  const bd = Math.round(bp - tp);
+  let msg = '';
+  if (pg >= phase.alertThresholds.progressGapWarn) msg = `Progress gap: burning ${pg} pts ahead of deliverables`;
+  else if (bd >= phase.alertThresholds.paceWarnDelta) msg = `Pace alert: burn is ${bd} pts ahead of time elapsed`;
+  else msg = `Hours at ${Math.round(bp)}% — threshold approaching`;
+  return `<div class="card-alert-strip"><span>⚠️</span>${msg} · Click to view detail</div>`;
+}
+
+// ═══════════════════════════════════════════
+// DETAIL
+// ═══════════════════════════════════════════
+function renderDetail(phaseId) {
+  const phase = D.phases.find(p => p.id === phaseId);
+  if (!phase) return;
+
+  let html = `<button class="back-btn" onclick="goToOverview()">← Program Overview</button>`;
+
+  if (phase.type === 'retainer') {
+    html += renderRetainerDetail(phase);
+  } else if (phase.state === 'upcoming') {
+    html += renderUpcomingDetail(phase);
+  } else {
+    html += renderActiveDetail(phase);
+  }
+
+  document.getElementById('page-detail').innerHTML = html;
+}
+
+function renderUpcomingDetail(phase) {
+  const startStr = phase.expectedStartDate ? fmtDate(phase.expectedStartDate) : 'TBD — depends on Phase ' + (phase.number - 1) + ' completion';
+  return `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div>
+          <div class="detail-phase-label">Phase ${phase.number} · Upcoming</div>
+          <div class="detail-phase-name">${phase.name}</div>
+          <div class="detail-phase-sub">${phase.subtitle}</div>
+        </div>
+        <span class="status-badge badge-upcoming">Upcoming</span>
+      </div>
+    </div>
+    <div class="upcoming-detail">
+      <div class="upcoming-icon">📋</div>
+      <div class="upcoming-title">Phase ${phase.number} hasn't started yet</div>
+      <div class="upcoming-sub">
+        Estimated start: <strong>${startStr}</strong><br>
+        ${phase.concurrentWith ? `Runs concurrently with Phase ${D.phases.find(p=>p.id===phase.concurrentWith)?.number} — ${D.phases.find(p=>p.id===phase.concurrentWith)?.name}` : 'Sequential — begins after previous phase completes'}
+      </div>
+      <div class="upcoming-stats">
+        <div class="upcoming-stat">
+          <div class="upcoming-stat-val">${fmt(phase.budgetHours)}</div>
+          <div class="upcoming-stat-label">Hours Budget</div>
+        </div>
+        <div class="upcoming-stat">
+          <div class="upcoming-stat-val">${phase.totalWeeks}</div>
+          <div class="upcoming-stat-label">Est. Weeks</div>
+        </div>
+        <div class="upcoming-stat">
+          <div class="upcoming-stat-val">0</div>
+          <div class="upcoming-stat-label">Hours Logged</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Milestones & Deliverables <span class="text-muted text-sm">· PM-maintained</span></span>
+        <button class="panel-toggle full-only" onclick="openAddMilestone('${phase.id}')">+ Add Item</button>
+      </div>
+      <div style="padding:24px 20px;text-align:center;color:#94A3B8;font-size:13px">
+        No milestones defined yet. ${role === 'full' ? 'Click <strong>+ Add Item</strong> to add the first one.' : 'Milestones will be added by the PM before this phase starts.'}
+      </div>
+    </div>`;
+}
+
+function renderRetainerDetail(phase) {
+  return `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div>
+          <div class="detail-phase-label">Phase ${phase.number} · Month-to-month retainer</div>
+          <div class="detail-phase-name">${phase.name}</div>
+          <div class="detail-phase-sub">${phase.subtitle}</div>
+        </div>
+        <span class="status-badge badge-upcoming">Upcoming</span>
+      </div>
+    </div>
+    <div class="upcoming-detail">
+      <div class="upcoming-icon">🔄</div>
+      <div class="upcoming-title">Phase 5 Retainer — Not Yet Active</div>
+      <div class="upcoming-sub">The retainer begins once Phase 4 wraps. When active, this view will show current-month burn vs. monthly cap and cumulative retainer history month-over-month.</div>
+      <div class="upcoming-stats">
+        <div class="upcoming-stat">
+          <div class="upcoming-stat-val">${fmt(phase.monthlyCapHours)}</div>
+          <div class="upcoming-stat-label">Monthly Cap (hrs)</div>
+        </div>
+        <div class="upcoming-stat">
+          <div class="upcoming-stat-val">—</div>
+          <div class="upcoming-stat-label">Start Date</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderActiveDetail(phase) {
+  const bp = burnPct(phase);
+  const tp = timePct(phase);
+  const dp = deliverablePct(phase.milestones);
+  const bd = bp - tp;
+  const pg = dp !== null ? bp - dp : 0;
+  const wr = weeksRemaining(phase);
+  const wbr = weeklyBurnRate(phase);
+  const health = phaseHealthState(phase);
+
+  const badgeMap = {
+    'on-track': ['badge-active','Active'],
+    'at-risk': ['badge-at-risk','⚠ At Risk'],
+    'critical': ['badge-critical','🔴 Critical'],
+  };
+  const [badgeCls, badgeLabel] = badgeMap[health] || ['badge-active','Active'];
+
+  let html = `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div>
+          <div class="detail-phase-label">Phase ${phase.number} · Active</div>
+          <div class="detail-phase-name">${phase.name}</div>
+          <div class="detail-phase-sub">${phase.subtitle}</div>
+        </div>
+        <div class="detail-header-right">
+          <div class="detail-week">📅 <strong>Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</strong></div>
+          <div class="detail-dates">${fmtDate(phase.startDate)} → ${phase.expectedEndDate ? fmtDate(phase.expectedEndDate) : 'TBD'}</div>
+          <div style="margin-top:6px"><span class="status-badge ${badgeCls}">${badgeLabel}</span></div>
+        </div>
+      </div>
+      <div class="detail-metrics-row">
+        <div class="detail-metric-box">
+          <div class="dm-label">Hours Budget</div>
+          <div class="dm-value" id="dm-budget">${fmt(phase.budgetHours)}</div>
+          <div class="dm-sub">${phase.subphases?.length > 0 ? 'Combined Phase ' + phase.number + ' allocation' : 'Phase allocation'}</div>
+        </div>
+        <div class="detail-metric-box">
+          <div class="dm-label">Hours Used</div>
+          <div class="dm-value" id="dm-used">${fmt(phase.usedHours)}</div>
+          <div class="dm-sub ${bp >= 80 ? 'warning' : ''}" id="dm-used-sub">${pct(bp)} burned</div>
+        </div>
+        <div class="detail-metric-box">
+          <div class="dm-label">Hours Remaining</div>
+          <div class="dm-value" id="dm-rem">${fmt(phase.budgetHours - phase.usedHours)}</div>
+          <div class="dm-sub ${wr && parseFloat(wr) < phase.totalWeeks - phase.elapsedWeeks ? 'warning' : ''}">${wr ? '~' + wr + ' wks at current pace' : '—'}</div>
+        </div>
+        <div class="detail-metric-box">
+          <div class="dm-label">Avg Weekly Burn</div>
+          <div class="dm-value">${fmt(wbr)} hrs</div>
+          <div class="dm-sub">trailing avg</div>
+        </div>
+      </div>
+    </div>`;
+
+  // Sub-phase selector (Phase 1, full mode only)
+  if (phase.subphases && phase.subphases.length > 0) {
+    const total = phase.usedHours;
+    html += `
+      <div class="subphase-selector full-only">
+        <span class="subphase-label">Sub-phase:</span>
+        <div class="subphase-tabs">
+          <button class="subtab active" onclick="setSubphase('all',this,'${phase.id}')">Combined</button>
+          ${phase.subphases.map(s => `<button class="subtab" onclick="setSubphase('${s.id}',this,'${phase.id}')">${s.label} — ${s.name}</button>`).join('')}
+        </div>
+        <div class="subphase-split">
+          ${phase.subphases.map((s,i) => `
+            <span class="split-item">
+              <span class="split-dot" style="background:${i===0?'#6366F1':'#F59E0B'}"></span>
+              <span>${s.label} ${s.name}: <strong>${fmt(s.usedHours)} hrs</strong> (${pct(s.usedHours/total*100)})</span>
+            </span>${i < phase.subphases.length-1 ? '<span style="color:#CBD5E1">·</span>' : ''}`).join('')}
+        </div>
+      </div>
+      <div class="subphase-note-bar" id="subphase-note-bar"></div>`;
+
+    // Static summary for team mode
+    html += `
+      <div class="subphase-summary-bar team-only">
+        <span class="ssb-label">Sub-phase breakdown:</span>
+        <div class="ssb-items">
+          ${phase.subphases.map((s,i) => `
+            ${i > 0 ? '<div class="ssb-divider"></div>' : ''}
+            <div class="ssb-item">
+              <span class="ssb-dot" style="background:${i===0?'#6366F1':'#F59E0B'}"></span>
+              <div>
+                <div class="ssb-main">${fmt(s.usedHours)} hrs <span style="color:#94A3B8;font-weight:400;font-size:12px">(${pct(s.usedHours/total*100)})</span></div>
+                <div class="ssb-sub">${s.label} — ${s.name}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  // Gauge
+  const narrativeClass = health === 'on-track' ? 'gauge-narrative-ok' : 'gauge-narrative';
+  const narrative = buildNarrative(phase, bp, tp, dp, bd, pg);
+  html += `
+    <div class="gauge-panel">
+      <div class="gauge-panel-title">Phase Health — Burn · Time · Progress</div>
+      <div class="gauge-row">
+        <span class="gauge-label">Hours Burned</span>
+        <div class="gauge-track"><div class="gauge-fill fill-burn" style="width:${Math.min(bp,100)}%"></div></div>
+        <span class="gauge-pct pct-burn">${pct(bp)}</span>
+        <span class="gauge-desc text-muted">${fmt(phase.usedHours)} of ${fmt(phase.budgetHours)} hrs</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-label">Time Elapsed</span>
+        <div class="gauge-track"><div class="gauge-fill fill-time" style="width:${Math.min(tp,100)}%"></div></div>
+        <span class="gauge-pct pct-time">${pct(tp)}</span>
+        <span class="gauge-desc text-muted">Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-label">Deliverable Completion</span>
+        <div class="gauge-track"><div class="gauge-fill fill-progress" style="width:${dp !== null ? Math.min(dp,100) : 0}%"></div></div>
+        <span class="gauge-pct pct-progress">${dp !== null ? pct(dp) : '—'}</span>
+        <span class="gauge-desc text-muted">PM-maintained</span>
+      </div>
+      <hr class="gauge-divider">
+      <div class="${narrativeClass}">${narrative}</div>
+    </div>`;
+
+  // Alert chips
+  html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
+
+  // Staff table (full mode only)
+  if (phase.staff && phase.staff.length > 0) {
+    html += `
+      <div class="panel full-only">
+        <div class="panel-header">
+          <span class="panel-title">Staff Hours <span class="text-muted text-sm">· <span id="staff-panel-label">Phase ${phase.number} Combined</span></span></span>
+          <span class="text-sm text-muted">Showing: This Phase</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Staff Member</th>
+              <th>Role</th>
+              ${phase.subphases?.length > 0 ? '<th>Sub-phase Split</th>' : ''}
+              <th>This Week</th>
+              <th>Total (Phase)</th>
+              <th>Allocated</th>
+              <th>Remaining</th>
+              <th>Utilization</th>
+            </tr>
+          </thead>
+          <tbody id="staff-tbody">
+            ${phase.staff.map(s => renderStaffRow(s, phase)).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // Milestones
+  html += renderMilestonesPanel(phase);
+
+  return html;
+}
+
+function renderStaffRow(s, phase) {
+  const usedPct = s.hoursAllocated > 0 ? (s.hoursTotal / s.hoursAllocated) * 100 : 0;
+  const allocCls = usedPct >= 95 ? 'alloc-risk' : usedPct >= 80 ? 'alloc-warn' : 'alloc-ok';
+  const pctColor = usedPct >= 95 ? '#EF4444' : usedPct >= 80 ? '#F59E0B' : '#10B981';
+  const hasSubphase = phase.subphases?.length > 0 && s.subphaseHours;
+
+  let subphaseCell = '';
+  if (hasSubphase) {
+    const sps = phase.subphases;
+    const a = s.subphaseHours[sps[0].id] || 0;
+    const b = s.subphaseHours[sps[1]?.id] || 0;
+    const total = a + b;
+    const aPct = total > 0 ? Math.round(a/total*100) : 50;
+    const bPct = 100 - aPct;
+    subphaseCell = `<td>
+      <div class="sms-bar"><div class="sms-fill-a" style="width:${aPct}%"></div><div class="sms-fill-b" style="width:${bPct}%"></div></div>
+      <div style="font-size:10px;color:#94A3B8;margin-top:3px">${sps[0].label} ${aPct}% · ${sps[1]?.label||''} ${bPct}%</div>
+    </td>`;
+  }
+
+  return `<tr data-staff-id="${s.id}"
+    ${hasSubphase ? `data-total1a="${s.subphaseHours[phase.subphases[0].id]||0}" data-total1b="${s.subphaseHours[phase.subphases[1]?.id]||0}"` : ''}
+    ${hasSubphase ? `data-week1a="${s.subphaseWeekHours?.[phase.subphases[0].id]||0}" data-week1b="${s.subphaseWeekHours?.[phase.subphases[1]?.id]||0}"` : ''}>
+    <td><strong>${s.name}</strong></td>
+    <td><span class="role-tag">${s.role}</span></td>
+    ${subphaseCell}
+    <td class="col-week">${s.hoursThisWeek} hrs</td>
+    <td class="col-total">${fmt(s.hoursTotal)} hrs</td>
+    <td>${fmt(s.hoursAllocated)} hrs</td>
+    <td>${fmt(s.hoursAllocated - s.hoursTotal)} hrs</td>
+    <td>
+      <div class="alloc-bar"><div class="alloc-fill ${allocCls}" style="width:${Math.min(usedPct,100)}%"></div></div>
+      <div class="staff-pct" style="color:${pctColor}">${Math.round(usedPct)}%</div>
+    </td>
+  </tr>`;
+}
+
+function renderMilestonesPanel(phase) {
+  const milestones = phase.milestones || [];
+  const dp = deliverablePct(milestones);
+  const completeCount = milestones.filter(m => m.status === 'complete').length;
+
+  let rows = milestones.length > 0
+    ? milestones.map(m => renderMilestoneRow(m, phase.id)).join('')
+    : `<tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">
+        No milestones defined yet.${role === 'full' ? ' Click <strong>+ Add Item</strong> to create the first one.' : ''}
+      </td></tr>`;
+
+  return `
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Milestones & Deliverables <span class="text-muted text-sm">· PM-maintained</span></span>
+        <button class="panel-toggle full-only" onclick="openAddMilestone('${phase.id}')">+ Add Item</button>
+      </div>
+      ${milestones.length > 0 ? `
+      <div style="padding:12px 20px 4px">
+        <div class="phase-completion-summary">
+          <span class="pcs-label">Phase Completion</span>
+          <div class="pcs-bar-wrap"><div class="pcs-bar-fill" style="width:${dp||0}%"></div></div>
+          <span class="pcs-pct">${dp !== null ? dp+'%' : '—'}</span>
+          <span class="pcs-count">${completeCount} of ${milestones.length} items complete</span>
+        </div>
+      </div>` : ''}
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th><th>Type</th><th>Target Date</th><th>Status</th><th>Completion</th><th>Notes</th>
+            <th class="full-only"></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <button class="add-row-btn full-only" onclick="openAddMilestone('${phase.id}')">＋ Add milestone or deliverable</button>
+    </div>`;
+}
+
+function renderMilestoneRow(m, phaseId) {
+  const statusMap = {
+    'complete': ['ms-complete','✓ Complete'],
+    'in_progress': ['ms-inprogress','In Progress'],
+    'not_started': ['ms-notstarted','Not Started'],
+    'blocked': ['ms-blocked','🚫 Blocked']
+  };
+  const [statusCls, statusLabel] = statusMap[m.status] || statusMap['not_started'];
+  const noteStyle = m.notes && m.notes.toLowerCase().includes('behind') || m.notes?.toLowerCase().includes('blocked') ? 'color:#F59E0B;font-weight:600' : 'color:#94A3B8';
+
+  return `<tr>
+    <td><strong>${m.name}</strong></td>
+    <td><span class="ms-type">${m.type === 'milestone' ? 'Milestone' : 'Deliverable'}</span></td>
+    <td>${fmtDate(m.targetDate)}</td>
+    <td><span class="ms-status ${statusCls}">${statusLabel}</span></td>
+    <td>
+      <div class="ms-bar-wrap">
+        <div class="ms-bar"><div class="ms-fill" style="width:${m.completionPct}%"></div></div>
+        <span class="ms-pct" ${m.completionPct === 0 ? 'style="color:#94A3B8"' : ''}>${m.completionPct}%</span>
+      </div>
+    </td>
+    <td style="${noteStyle}">${m.notes || '—'}</td>
+    <td class="full-only"><button class="pm-edit-btn" onclick="openEditMilestone('${phaseId}','${m.id}')">Edit</button></td>
+  </tr>`;
+}
+
+function buildNarrative(phase, bp, tp, dp, bd, pg) {
+  bp = Math.round(bp); tp = Math.round(tp); bd = Math.round(bd); pg = dp !== null ? Math.round(pg) : null;
+  const t = phase.alertThresholds;
+
+  if (pg !== null && pg >= t.progressGapCrit) {
+    return `<strong>🔴 Critical Progress Gap.</strong> You've burned <strong>${bp}%</strong> of hours through Week ${phase.elapsedWeeks} of ${phase.totalWeeks} (<strong>${tp}%</strong> of timeline), but deliverables are only <strong>${dp}%</strong> complete — <strong>${pg} points behind burn rate</strong>. Immediate intervention needed: identify what's blocking output and adjust staffing or scope.`;
+  }
+  if (pg !== null && pg >= t.progressGapWarn) {
+    return `<strong>⚠️ Progress Gap Detected.</strong> You've burned <strong>${bp}%</strong> of hours through Week ${phase.elapsedWeeks} of ${phase.totalWeeks} (<strong>${tp}%</strong> of timeline). Deliverables are only <strong>${dp}%</strong> complete — <strong>${pg} points behind burn rate</strong>. The team is spending hours but output is lagging. Review the milestone panel and identify blockers.`;
+  }
+  if (bd >= t.paceCritDelta) {
+    return `<strong>🔴 Pace Critical.</strong> Hours burn rate is <strong>${bp}%</strong> but only <strong>${tp}%</strong> of the timeline has passed — a <strong>${bd}-point lead</strong>. At this rate hours will be exhausted significantly before the deadline. Reduce weekly team hours or revisit scope.`;
+  }
+  if (bd >= t.paceWarnDelta) {
+    return `<strong>⚠️ Pace Warning.</strong> Burning slightly fast — hours at <strong>${bp}%</strong> vs <strong>${tp}%</strong> of timeline elapsed (${bd}-point lead). Monitor weekly and consider whether scope or staffing needs adjustment.`;
+  }
+  if (dp !== null) {
+    return `<strong>✅ On Track.</strong> Hours at <strong>${bp}%</strong>, timeline at <strong>${tp}%</strong>, deliverables at <strong>${dp}%</strong>. All three indicators are aligned — no action required.`;
+  }
+  return `<strong>✅ Tracking normally.</strong> Hours at <strong>${bp}%</strong> through Week ${phase.elapsedWeeks} of ${phase.totalWeeks} (<strong>${tp}%</strong> of timeline elapsed). No alerts triggered.`;
+}
+
+function renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr) {
+  const t = phase.alertThresholds;
+  const chips = [];
+
+  // Progress gap
+  if (dp !== null) {
+    if (pg >= t.progressGapCrit) chips.push({cls:'chip-red',icon:'🔴',title:'Progress Gap — Critical',sub:`Burn ahead of deliverables by ${Math.round(pg)} pts (threshold: ${t.progressGapCrit})`});
+    else if (pg >= t.progressGapWarn) chips.push({cls:'chip-yellow',icon:'⚠️',title:'Progress Gap — Yellow',sub:`Burn ahead of deliverables by ${Math.round(pg)} pts (threshold: ${t.progressGapWarn})`});
+    else chips.push({cls:'chip-green',icon:'✅',title:'Progress — On Track',sub:`Burn vs. deliverables gap: ${Math.round(pg)} pts (threshold: ${t.progressGapWarn})`});
+  }
+
+  // Pace
+  if (bd >= t.paceCritDelta) chips.push({cls:'chip-red',icon:'🔴',title:'Pace — Critical',sub:`Burn is ${Math.round(bd)} pts ahead of time elapsed (threshold: ${t.paceCritDelta})`});
+  else if (bd >= t.paceWarnDelta) chips.push({cls:'chip-yellow',icon:'⚠️',title:'Pace — Warning',sub:`Burn is ${Math.round(bd)} pts ahead of time elapsed (threshold: ${t.paceWarnDelta})`});
+  else chips.push({cls:'chip-green',icon:'✅',title:'Pace — On Track',sub:`Burn vs. time delta: +${Math.round(bd)} pts (threshold: ${t.paceWarnDelta})`});
+
+  // Runway
+  if (wr) {
+    const weeksLeft = phase.totalWeeks - phase.elapsedWeeks;
+    const early = parseFloat(wr) < weeksLeft;
+    chips.push({
+      cls: early ? 'chip-yellow' : 'chip-blue',
+      icon: early ? '⏱️' : '🔮',
+      title: 'Forecasted Runway',
+      sub: `At ${fmt(wbr)} hrs/week → hours exhaust in ~${wr} wks${early ? ' (' + (weeksLeft-parseFloat(wr)).toFixed(1) + ' wks early)' : ' (on schedule)'}`
+    });
+  }
+
+  return `<div class="alerts-row">${chips.map(c => `
+    <div class="alert-chip ${c.cls}">
+      <span class="chip-icon">${c.icon}</span>
+      <div><div class="chip-title">${c.title}</div><div class="chip-sub">${c.sub}</div></div>
+    </div>`).join('')}</div>`;
+}
+
+// ═══════════════════════════════════════════
+// SUB-PHASE TOGGLE
+// ═══════════════════════════════════════════
+function setSubphase(sp, btn, phaseId) {
+  subphase = sp;
+  document.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  const phase = D.phases.find(p => p.id === phaseId);
+  const noteBar = document.getElementById('subphase-note-bar');
+  const staffLabel = document.getElementById('staff-panel-label');
+  const dmUsed = document.getElementById('dm-used');
+  const dmUsedSub = document.getElementById('dm-used-sub');
+  const rows = document.querySelectorAll('#staff-tbody tr');
+
+  if (sp === 'all') {
+    noteBar.style.display = 'none';
+    if (staffLabel) staffLabel.textContent = 'Phase ' + phase.number + ' Combined';
+    if (dmUsed) { dmUsed.textContent = fmt(phase.usedHours); dmUsedSub.textContent = pct(burnPct(phase)) + ' burned'; }
+    rows.forEach(row => {
+      const t1a = parseInt(row.dataset.total1a || 0);
+      const t1b = parseInt(row.dataset.total1b || 0);
+      const w1a = parseInt(row.dataset.week1a || 0);
+      const w1b = parseInt(row.dataset.week1b || 0);
+      if (row.querySelector('.col-total')) row.querySelector('.col-total').textContent = fmt(t1a + t1b) + ' hrs';
+      if (row.querySelector('.col-week')) row.querySelector('.col-week').textContent = (w1a + w1b) + ' hrs';
+    });
+  } else {
+    const spData = phase.subphases.find(s => s.id === sp);
+    noteBar.style.display = 'flex';
+    noteBar.innerHTML = `📌 Showing <strong>${spData.label} — ${spData.name}</strong> hours only (${fmt(spData.usedHours)} hrs of ${fmt(phase.usedHours)} combined)`;
+    if (staffLabel) staffLabel.textContent = spData.label + ' — ' + spData.name;
+    if (dmUsed) { dmUsed.textContent = fmt(spData.usedHours); dmUsedSub.textContent = 'of ' + fmt(phase.usedHours) + ' combined hrs'; }
+    rows.forEach(row => {
+      const val = sp === '1a' ? parseInt(row.dataset.total1a || 0) : parseInt(row.dataset.total1b || 0);
+      const wval = sp === '1a' ? parseInt(row.dataset.week1a || 0) : parseInt(row.dataset.week1b || 0);
+      if (row.querySelector('.col-total')) row.querySelector('.col-total').textContent = val + ' hrs';
+      if (row.querySelector('.col-week')) row.querySelector('.col-week').textContent = wval + ' hrs';
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+// MILESTONE MODAL
+// ═══════════════════════════════════════════
+function openAddMilestone(phaseId) {
+  editingMilestone = { phaseId, milestoneId: null };
+  document.getElementById('modal-title').textContent = 'Add Milestone / Deliverable';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-body').innerHTML = buildMilestoneForm(null);
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function openEditMilestone(phaseId, milestoneId) {
+  const phase = D.phases.find(p => p.id === phaseId);
+  const m = phase.milestones.find(m => m.id === milestoneId);
+  editingMilestone = { phaseId, milestoneId };
+  document.getElementById('modal-title').textContent = 'Edit Milestone';
+  document.getElementById('modal-delete-btn').style.display = '';
+  document.getElementById('modal-body').innerHTML = buildMilestoneForm(m);
+  // Sync range display
+  const range = document.getElementById('modal-pct');
+  if (range) range.addEventListener('input', () => { document.getElementById('modal-pct-val').textContent = range.value + '%'; });
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function buildMilestoneForm(m) {
+  const statuses = ['not_started','in_progress','complete','blocked'];
+  const statusLabels = {'not_started':'Not Started','in_progress':'In Progress','complete':'Complete','blocked':'Blocked'};
+  return `
+    <div class="form-row">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="modal-name" value="${m ? m.name : ''}" placeholder="e.g. Architecture sign-off complete">
+    </div>
+    <div class="form-row-split" style="display:flex;gap:12px">
+      <div class="form-row" style="flex:1">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="modal-type">
+          <option value="milestone" ${!m || m.type==='milestone' ? 'selected' : ''}>Milestone (binary)</option>
+          <option value="deliverable" ${m?.type==='deliverable' ? 'selected' : ''}>Deliverable (% progress)</option>
+        </select>
+      </div>
+      <div class="form-row" style="flex:1">
+        <label class="form-label">Target Date</label>
+        <input class="form-input" id="modal-date" type="date" value="${m ? m.targetDate : ''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Status</label>
+      <select class="form-select" id="modal-status">
+        ${statuses.map(s => `<option value="${s}" ${m?.status===s ? 'selected' : ''}>${statusLabels[s]}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Completion %</label>
+      <div class="range-wrap">
+        <input type="range" id="modal-pct" min="0" max="100" value="${m ? m.completionPct : 0}" oninput="document.getElementById('modal-pct-val').textContent=this.value+'%'">
+        <span class="range-val" id="modal-pct-val">${m ? m.completionPct : 0}%</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Notes</label>
+      <textarea class="form-textarea" id="modal-notes" placeholder="Optional context, blockers, dependencies…">${m ? m.notes : ''}</textarea>
+    </div>`;
+}
+
+function saveMilestone() {
+  const { phaseId, milestoneId } = editingMilestone;
+  const phase = D.phases.find(p => p.id === phaseId);
+  const name = document.getElementById('modal-name').value.trim();
+  if (!name) { document.getElementById('modal-name').focus(); return; }
+
+  const now = new Date().toISOString();
+  const newM = {
+    id: milestoneId || ('m-' + Date.now()),
+    name,
+    type: document.getElementById('modal-type').value,
+    targetDate: document.getElementById('modal-date').value,
+    status: document.getElementById('modal-status').value,
+    completionPct: parseInt(document.getElementById('modal-pct').value),
+    notes: document.getElementById('modal-notes').value.trim(),
+    lastUpdated: now,
+    airtableRecordId: null
+  };
+
+  if (milestoneId) {
+    const idx = phase.milestones.findIndex(m => m.id === milestoneId);
+    if (idx >= 0) phase.milestones[idx] = newM;
+  } else {
+    phase.milestones.push(newM);
+  }
+
+  // Persist to localStorage
+  const o = getOverrides();
+  o[phaseId + '.milestones'] = phase.milestones;
+  saveOverrides(o);
+
+  closeModal();
+  renderDetail(phaseId);
+}
+
+function deleteMilestone() {
+  const { phaseId, milestoneId } = editingMilestone;
+  const phase = D.phases.find(p => p.id === phaseId);
+  phase.milestones = phase.milestones.filter(m => m.id !== milestoneId);
+  const o = getOverrides();
+  o[phaseId + '.milestones'] = phase.milestones;
+  saveOverrides(o);
+  closeModal();
+  renderDetail(phaseId);
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+  editingMilestone = null;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function fmtDate(str) {
+  if (!str) return 'TBD';
+  const d = new Date(str + 'T12:00:00Z');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Secrets — never commit
+.secrets.md
+.env
+.env.local
+
+# Working files (not part of the deployed app)
+M3_Dashboard_Mockup.html
+M3_Phase_Tracking_Dashboard_PRD.md
+
+# System
+.DS_Store
+node_modules/
+*.log

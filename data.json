@@ -1,0 +1,285 @@
+{
+  "lastUpdated": "2026-07-07T11:04:00Z",
+  "program": {
+    "name": "M3 Engagement",
+    "client": "M3",
+    "currentActivePhase": "phase1"
+  },
+  "phases": [
+    {
+      "id": "phase1",
+      "number": 1,
+      "name": "Structured Discovery",
+      "subtitle": "Unified Intelligence Platform",
+      "projectXTaskIds": [280, 285],
+      "state": "active",
+      "type": "fixed",
+      "startDate": "2026-06-09",
+      "expectedEndDate": "2026-09-05",
+      "totalWeeks": 14,
+      "elapsedWeeks": 8,
+      "budgetHours": 1765,
+      "usedHours": 1097,
+      "concurrentWith": null,
+      "alertThresholds": {
+        "warnPct": 80,
+        "criticalPct": 95,
+        "paceWarnDelta": 15,
+        "paceCritDelta": 25,
+        "progressGapWarn": 20,
+        "progressGapCrit": 35
+      },
+      "subphases": [
+        {
+          "id": "1a",
+          "taskId": 280,
+          "name": "Discovery VetLeo",
+          "label": "1A",
+          "usedHours": 592,
+          "weekHours": 69
+        },
+        {
+          "id": "1b",
+          "taskId": 285,
+          "name": "Discovery Raivan",
+          "label": "1B",
+          "usedHours": 505,
+          "weekHours": 57
+        }
+      ],
+      "staff": [
+        {
+          "id": "mikeb",
+          "name": "Mike B.",
+          "role": "Product Director",
+          "hoursThisWeek": 12,
+          "hoursTotal": 184,
+          "hoursAllocated": 210,
+          "subphaseHours": { "1a": 90, "1b": 94 },
+          "subphaseWeekHours": { "1a": 6, "1b": 6 }
+        },
+        {
+          "id": "billyr",
+          "name": "Billy R.",
+          "role": "CTO",
+          "hoursThisWeek": 8,
+          "hoursTotal": 98,
+          "hoursAllocated": 105,
+          "subphaseHours": { "1a": 50, "1b": 48 },
+          "subphaseWeekHours": { "1a": 4, "1b": 4 }
+        },
+        {
+          "id": "kevinm",
+          "name": "Kevin M.",
+          "role": "UX Design Lead",
+          "hoursThisWeek": 36,
+          "hoursTotal": 292,
+          "hoursAllocated": 350,
+          "subphaseHours": { "1a": 240, "1b": 52 },
+          "subphaseWeekHours": { "1a": 30, "1b": 6 }
+        },
+        {
+          "id": "tereg",
+          "name": "Tere G.",
+          "role": "Product Designer",
+          "hoursThisWeek": 34,
+          "hoursTotal": 268,
+          "hoursAllocated": 315,
+          "subphaseHours": { "1a": 80, "1b": 188 },
+          "subphaseWeekHours": { "1a": 10, "1b": 24 }
+        },
+        {
+          "id": "rodril",
+          "name": "Rodri L.",
+          "role": "Tech Lead / Arch.",
+          "hoursThisWeek": 22,
+          "hoursTotal": 162,
+          "hoursAllocated": 210,
+          "subphaseHours": { "1a": 82, "1b": 80 },
+          "subphaseWeekHours": { "1a": 11, "1b": 11 }
+        },
+        {
+          "id": "sarak",
+          "name": "Sarah K.",
+          "role": "Project Manager",
+          "hoursThisWeek": 14,
+          "hoursTotal": 93,
+          "hoursAllocated": 175,
+          "subphaseHours": { "1a": 50, "1b": 43 },
+          "subphaseWeekHours": { "1a": 8, "1b": 6 }
+        }
+      ],
+      "milestones": [
+        {
+          "id": "m1-1",
+          "name": "Kickoff Workshop",
+          "type": "milestone",
+          "targetDate": "2026-06-12",
+          "status": "complete",
+          "completionPct": 100,
+          "notes": "",
+          "lastUpdated": "2026-06-12T00:00:00Z",
+          "airtableRecordId": null
+        },
+        {
+          "id": "m1-2",
+          "name": "Stakeholder Interviews",
+          "type": "milestone",
+          "targetDate": "2026-07-03",
+          "status": "complete",
+          "completionPct": 100,
+          "notes": "8 sessions completed",
+          "lastUpdated": "2026-07-03T00:00:00Z",
+          "airtableRecordId": null
+        },
+        {
+          "id": "m1-3",
+          "name": "Technical Architecture Validated",
+          "type": "deliverable",
+          "targetDate": "2026-08-01",
+          "status": "in_progress",
+          "completionPct": 40,
+          "notes": "ADRs drafted, review pending",
+          "lastUpdated": "2026-07-05T00:00:00Z",
+          "airtableRecordId": null
+        },
+        {
+          "id": "m1-4",
+          "name": "Discovery Documentation",
+          "type": "deliverable",
+          "targetDate": "2026-08-15",
+          "status": "in_progress",
+          "completionPct": 20,
+          "notes": "Outline complete",
+          "lastUpdated": "2026-07-01T00:00:00Z",
+          "airtableRecordId": null
+        },
+        {
+          "id": "m1-5",
+          "name": "Phased Roadmap Delivered",
+          "type": "deliverable",
+          "targetDate": "2026-08-29",
+          "status": "in_progress",
+          "completionPct": 4,
+          "notes": "Behind — inputs pending",
+          "lastUpdated": "2026-07-07T00:00:00Z",
+          "airtableRecordId": null
+        },
+        {
+          "id": "m1-6",
+          "name": "SOW for Phases 2–4 Drafted",
+          "type": "deliverable",
+          "targetDate": "2026-09-05",
+          "status": "not_started",
+          "completionPct": 0,
+          "notes": "Blocked on roadmap",
+          "lastUpdated": "2026-07-07T00:00:00Z",
+          "airtableRecordId": null
+        }
+      ]
+    },
+    {
+      "id": "phase2",
+      "number": 2,
+      "name": "Platform Fabric",
+      "subtitle": "Unified Intelligence Layer",
+      "projectXTaskIds": [281],
+      "state": "upcoming",
+      "type": "fixed",
+      "startDate": null,
+      "expectedStartDate": "2026-09-08",
+      "expectedEndDate": null,
+      "totalWeeks": 16,
+      "elapsedWeeks": 0,
+      "budgetHours": 5294,
+      "usedHours": 0,
+      "concurrentWith": "phase3",
+      "alertThresholds": {
+        "warnPct": 80,
+        "criticalPct": 95,
+        "paceWarnDelta": 15,
+        "paceCritDelta": 25,
+        "progressGapWarn": 20,
+        "progressGapCrit": 35
+      },
+      "subphases": [],
+      "staff": [],
+      "milestones": []
+    },
+    {
+      "id": "phase3",
+      "number": 3,
+      "name": "VetLeo MVP",
+      "subtitle": "Consumer Mobile Application",
+      "projectXTaskIds": [282],
+      "state": "upcoming",
+      "type": "fixed",
+      "startDate": null,
+      "expectedStartDate": "2026-09-08",
+      "expectedEndDate": null,
+      "totalWeeks": 16,
+      "elapsedWeeks": 0,
+      "budgetHours": 3529,
+      "usedHours": 0,
+      "concurrentWith": "phase2",
+      "alertThresholds": {
+        "warnPct": 80,
+        "criticalPct": 95,
+        "paceWarnDelta": 15,
+        "paceCritDelta": 25,
+        "progressGapWarn": 20,
+        "progressGapCrit": 35
+      },
+      "subphases": [],
+      "staff": [],
+      "milestones": []
+    },
+    {
+      "id": "phase4",
+      "number": 4,
+      "name": "Raivan MVP",
+      "subtitle": "Clinical Practice Management System",
+      "projectXTaskIds": [283],
+      "state": "upcoming",
+      "type": "fixed",
+      "startDate": null,
+      "expectedStartDate": null,
+      "expectedEndDate": null,
+      "totalWeeks": 22,
+      "elapsedWeeks": 0,
+      "budgetHours": 10588,
+      "usedHours": 0,
+      "concurrentWith": null,
+      "alertThresholds": {
+        "warnPct": 80,
+        "criticalPct": 95,
+        "paceWarnDelta": 15,
+        "paceCritDelta": 25,
+        "progressGapWarn": 20,
+        "progressGapCrit": 35
+      },
+      "subphases": [],
+      "staff": [],
+      "milestones": []
+    },
+    {
+      "id": "phase5",
+      "number": 5,
+      "name": "Progressive Intelligence & Marketplace",
+      "subtitle": "Month-to-month retainer",
+      "projectXTaskIds": [284],
+      "state": "upcoming",
+      "type": "retainer",
+      "startDate": null,
+      "monthlyCapHours": 1765,
+      "currentMonth": null,
+      "history": [],
+      "alertThresholds": {
+        "warnPct": 85,
+        "criticalPct": 100
+      },
+      "staff": [],
+      "milestones": []
+    }
+  ]
+}
