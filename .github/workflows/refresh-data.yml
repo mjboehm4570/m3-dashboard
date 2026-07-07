@@ -32,8 +32,8 @@ jobs:
 
       - name: Commit updated data.json
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "mjboehm4570"
+          git config user.email "mjboehm4570@users.noreply.github.com"
           git add data.json
           # Only commit if data.json actually changed
           git diff --staged --quiet && echo "No changes to data.json — skipping commit" || \
