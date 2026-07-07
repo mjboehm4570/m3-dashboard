@@ -47,17 +47,18 @@ const TASK_TO_SUBPHASE = {
 };
 
 /**
- * STAFF NAME MAP — maps ProjectX user full names to data.json staff IDs.
- * Run once with --diagnose to see the names ProjectX returns, then update here.
- * Format: 'Exact ProjectX Name': 'data.json staff id'
+ * STAFF NAME MAP — maps ProjectX full_name values to data.json staff IDs.
+ * The grouped_by_users endpoint returns full_name (e.g. "Teresita Ambrosio").
+ * After running --diagnose, verify each name below matches exactly.
+ * Format: 'Exact ProjectX full_name': 'data.json staff id'
  */
 const STAFF_NAME_TO_ID = {
-  'Mike Boehm':    'mikeb',
-  'Billy Reuben':  'billyr',   // update if name differs in ProjectX
-  'Kevin M':       'kevinm',   // update if name differs in ProjectX
-  'Tere G':        'tereg',    // update if name differs in ProjectX
-  'Rodri L':       'rodril',   // update if name differs in ProjectX
-  'Sarah K':       'sarak',    // update if name differs in ProjectX
+  'Mike Boehm':        'mikeb',
+  'Billy Reuben':      'billyr',    // ← confirm exact name in ProjectX
+  'Kevin Moran':       'kevinm',    // ← confirm exact name in ProjectX
+  'Teresita Ambrosio': 'tereg',     // confirmed from diagnose output
+  'Rodrigo Lopez':     'rodril',    // ← confirm exact name in ProjectX
+  'Sarah Kovacs':      'sarak',     // ← confirm exact name in ProjectX
 };
 
 // ─── HTTP helper ────────────────────────────────────────────────────────────
@@ -87,7 +88,8 @@ function apiGet(endpoint) {
 }
 
 // Fetches all pages of a paginated endpoint, returning a flat array of entries.
-// Handles both array responses and {time_entries: [], total_pages: N} shapes.
+// ProjectX wraps responses in {"report": {"tracked_time_entries": [...], "total_pages": N}}
+// or {"report": {"users": [...], "total_pages": N}} for grouped endpoints.
 async function fetchAllPages(baseEndpoint) {
   const all = [];
   let page  = 1;
@@ -96,18 +98,22 @@ async function fetchAllPages(baseEndpoint) {
     const sep  = baseEndpoint.includes('?') ? '&' : '?';
     const data = await apiGet(`${baseEndpoint}${sep}page=${page}`);
 
-    // Normalise: API may return a raw array or a wrapper object
-    const entries = Array.isArray(data)
-      ? data
-      : (data.time_entries || data.entries || data.data || []);
+    // Unwrap the {report: {...}} envelope
+    const report = (data && typeof data === 'object' && data.report) ? data.report : data;
+
+    const entries = Array.isArray(report)
+      ? report
+      : (report.tracked_time_entries || report.users || report.entries || report.data || []);
 
     all.push(...entries);
 
     const totalPages =
-      data.total_pages ||
-      data.pagination?.total_pages ||
-      data.meta?.total_pages ||
+      report.total_pages ||
+      data.total_pages   ||
+      report.pagination?.total_pages ||
       1;
+
+    if (DIAGNOSE) console.log(`  page ${page}/${totalPages}, got ${entries.length} entries`);
 
     if (page >= totalPages || entries.length === 0) break;
     page++;
@@ -192,11 +198,12 @@ async function main() {
   );
 
   // ── 5. Aggregate: hours by task ID ────────────────────────────────────────
-  // duration field is in MINUTES — divide by 60 to get hours
+  // duration field is in MINUTES — divide by 60 to get hours.
+  // The flat entries endpoint includes a task object; task_id may also be top-level.
   function hoursFromEntries(entries) {
     const byTask = {};
     for (const e of entries) {
-      const taskId = e.task?.id ?? e.task_id;
+      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id;
       if (taskId == null) continue;
       byTask[taskId] = (byTask[taskId] || 0) + (e.duration || 0) / 60;
     }
@@ -206,13 +213,30 @@ async function main() {
   const taskHoursAll  = hoursFromEntries(allEntries);
   const taskHoursWeek = hoursFromEntries(weekEntries);
 
+  if (DIAGNOSE) {
+    console.log('\n=== DIAGNOSE: Task hour totals (all-time) ===');
+    console.log(taskHoursAll);
+    if (allEntries.length > 0) {
+      console.log('\n=== DIAGNOSE: Full first entry (task field check) ===');
+      console.log(JSON.stringify(allEntries[0], null, 2));
+    }
+  }
+
   // ── 6. Aggregate: hours by task ID + user (for subphase staff breakdown) ──
-  // Shape: { 'UserName': { taskId: hours, taskId: hours } }
+  // Shape: { 'Full Name': { taskId: hours, ... } }
+  // User name from flat entries: user.full_name or "first_name last_name"
+  function fullNameFromEntry(e) {
+    return e.user?.full_name
+      || (e.user?.first_name ? `${e.user.first_name} ${e.user.last_name || ''}`.trim() : null)
+      || e.user_name
+      || null;
+  }
+
   function staffTaskHoursFromEntries(entries) {
     const byUserTask = {};
     for (const e of entries) {
-      const name   = e.user?.name ?? e.user_name ?? e.name;
-      const taskId = e.task?.id   ?? e.task_id;
+      const name   = fullNameFromEntry(e);
+      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id;
       if (!name || taskId == null) continue;
       if (!byUserTask[name]) byUserTask[name] = {};
       byUserTask[name][taskId] = (byUserTask[name][taskId] || 0) + (e.duration || 0) / 60;
@@ -224,14 +248,19 @@ async function main() {
   const staffTaskWeek = staffTaskHoursFromEntries(weekEntries);
 
   // ── 7. Aggregate: total hours by user from grouped endpoint ───────────────
-  // The grouped endpoint returns one record per user with a totalled duration.
-  // Handles both {user: {name}, duration} and {user_name, total_duration} shapes.
-  function staffTotalHours(groupedEntries) {
+  // The grouped_by_users endpoint returns {full_name, time_entries: [...]} per user.
+  // Sum the nested time_entries durations for each user.
+  function staffTotalHours(groupedUsers) {
     const byName = {};
-    for (const e of groupedEntries) {
-      const name  = e.user?.name ?? e.user_name ?? e.name;
-      const hours = (e.duration ?? e.total_duration ?? 0) / 60;
-      if (name) byName[name] = (byName[name] || 0) + hours;
+    for (const u of groupedUsers) {
+      // full_name is the primary field on the grouped endpoint
+      const name = u.full_name || u.user?.full_name || u.user?.name || u.user_name || u.name;
+      if (!name) continue;
+      // Sum nested time_entries if present, otherwise use a top-level duration/total_duration
+      const hours = u.time_entries
+        ? u.time_entries.reduce((s, e) => s + (e.duration || 0), 0) / 60
+        : (u.total_duration ?? u.duration ?? 0) / 60;
+      byName[name] = (byName[name] || 0) + hours;
     }
     return byName;
   }
@@ -239,7 +268,12 @@ async function main() {
   const staffTotalsAll  = staffTotalHours(staffAllTime);
   const staffTotalsWeek = staffTotalHours(staffThisWeek);
 
-  console.log('[data-refresh] ProjectX users found:', Object.keys(staffTotalsAll).join(', ') || '(none — check STAFF_NAME_TO_ID map)');
+  const foundUsers = Object.keys(staffTotalsAll);
+  console.log(`[data-refresh] ProjectX users found (${foundUsers.length}):`, foundUsers.join(', ') || '(none)');
+  if (foundUsers.length > 0) {
+    const unmapped = foundUsers.filter(n => !STAFF_NAME_TO_ID[n]);
+    if (unmapped.length) console.log('  ⚠ Not in STAFF_NAME_TO_ID map:', unmapped.join(', '));
+  }
 
   // ── 8. Patch each phase ───────────────────────────────────────────────────
   const updated = {
