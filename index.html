@@ -372,7 +372,7 @@ tr:hover td{background:#FAFAFA}
     <div class="modal-actions">
       <button class="btn-danger" id="modal-delete-btn" onclick="deleteMilestone()">Delete</button>
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveMilestone()">Save</button>
+      <button class="btn-primary" onclick="handleModalSave()">Save</button>
     </div>
   </div>
 </div>
@@ -394,8 +394,10 @@ let currentPage = 'overview';
 let selectedPhaseId = null;
 let subphase = 'all';
 let editingMilestone = null;  // { phaseId, milestoneId }
+let editingStaff = null;      // { phaseId, staffId }
+let modalMode = 'milestone';  // 'milestone' | 'staff'
 
-// localStorage overrides for milestone edits
+// localStorage overrides for PM edits (milestones + staff metadata)
 function getOverrides() {
   try { return JSON.parse(localStorage.getItem('m3-overrides') || '{}'); } catch(e) { return {}; }
 }
@@ -407,6 +409,14 @@ function applyOverrides(data) {
   data.phases.forEach(phase => {
     if (o[phase.id + '.milestones']) {
       phase.milestones = o[phase.id + '.milestones'];
+    }
+    // Apply staff overrides: role, name, hoursAllocated only (hours come from ProjectX)
+    if (o[phase.id + '.staff']) {
+      const staffOv = o[phase.id + '.staff']; // { staffId: { name, role, hoursAllocated } }
+      phase.staff = phase.staff.map(s => {
+        const ov = staffOv[s.id];
+        return ov ? { ...s, ...ov } : s;
+      });
     }
   });
   return data;
@@ -937,6 +947,7 @@ function renderActiveDetail(phase) {
               <th>Allocated</th>
               <th>Remaining</th>
               <th>Utilization</th>
+              <th class="full-only"></th>
             </tr>
           </thead>
           <tbody id="staff-tbody">
@@ -985,6 +996,9 @@ function renderStaffRow(s, phase) {
     <td>
       <div class="alloc-bar"><div class="alloc-fill ${allocCls}" style="width:${Math.min(usedPct,100)}%"></div></div>
       <div class="staff-pct" style="color:${pctColor}">${Math.round(usedPct)}%</div>
+    </td>
+    <td class="full-only" style="text-align:center">
+      <button class="pm-edit-btn" onclick="openEditStaff('${phase.id}','${s.id}')">Edit</button>
     </td>
   </tr>`;
 }
@@ -1263,9 +1277,85 @@ function deleteMilestone() {
   renderDetail(phaseId);
 }
 
+function handleModalSave() {
+  if (modalMode === 'staff') saveStaff();
+  else saveMilestone();
+}
+
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('visible');
   editingMilestone = null;
+  editingStaff = null;
+  modalMode = 'milestone';
+}
+
+// ═══════════════════════════════════════════
+// STAFF EDIT MODAL  (Leadership / full-only)
+// ═══════════════════════════════════════════
+function openEditStaff(phaseId, staffId) {
+  const phase = D.phases.find(p => p.id === phaseId);
+  const s = phase.staff.find(s => s.id === staffId);
+  if (!s) return;
+  editingStaff = { phaseId, staffId };
+  modalMode = 'staff';
+  document.getElementById('modal-title').textContent = 'Edit Staff Member';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-body').innerHTML = buildStaffForm(s);
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function buildStaffForm(s) {
+  const remaining = s.hoursAllocated - s.hoursTotal;
+  return `
+    <div class="form-row">
+      <label class="form-label">Display Name</label>
+      <input class="form-input" id="staff-modal-name" value="${s.name}" placeholder="e.g. Mike B.">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Role</label>
+      <input class="form-input" id="staff-modal-role" value="${s.role}" placeholder="e.g. Designer, Tech Lead">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Allocated Hours (this phase)</label>
+      <input class="form-input" id="staff-modal-alloc" type="number" min="0" step="1" value="${s.hoursAllocated}" placeholder="0">
+    </div>
+    <div style="font-size:12px;color:#94A3B8;margin-top:8px">
+      Hours logged: <strong style="color:#CBD5E1">${s.hoursTotal} hrs</strong> &nbsp;·&nbsp;
+      Remaining: <strong style="color:#CBD5E1">${remaining} hrs</strong> &nbsp;·&nbsp;
+      Pulled from ProjectX — not editable here.
+    </div>`;
+}
+
+function saveStaff() {
+  if (!editingStaff) return;
+  const { phaseId, staffId } = editingStaff;
+  const phase = D.phases.find(p => p.id === phaseId);
+  const s = phase.staff.find(s => s.id === staffId);
+  if (!s) return;
+
+  const name = document.getElementById('staff-modal-name').value.trim();
+  const role = document.getElementById('staff-modal-role').value.trim();
+  const hoursAllocated = parseInt(document.getElementById('staff-modal-alloc').value) || 0;
+
+  if (!name || !role) {
+    if (!name) document.getElementById('staff-modal-name').focus();
+    else document.getElementById('staff-modal-role').focus();
+    return;
+  }
+
+  // Update in-memory
+  s.name = name;
+  s.role = role;
+  s.hoursAllocated = hoursAllocated;
+
+  // Persist to localStorage
+  const o = getOverrides();
+  if (!o[phaseId + '.staff']) o[phaseId + '.staff'] = {};
+  o[phaseId + '.staff'][staffId] = { name, role, hoursAllocated };
+  saveOverrides(o);
+
+  closeModal();
+  renderDetail(phaseId);
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
