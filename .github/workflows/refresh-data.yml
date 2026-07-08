@@ -42,12 +42,11 @@ jobs:
         # Pull --rebase first in case local code pushes landed since checkout
         run: git pull --rebase && git push
 
-      # Deploy directly via Vercel CLI — bypasses Hobby plan GitHub Actions restriction
-      - name: Link Vercel project
-        run: |
-          mkdir -p .vercel
-          echo '{"projectId":"${{ secrets.VERCEL_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
-
+      # Deploy directly via Vercel — bypasses Hobby plan GitHub Actions restriction
       - name: Deploy to Vercel
-        run: npx vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
-        timeout-minutes: 3
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
