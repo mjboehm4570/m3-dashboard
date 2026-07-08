@@ -42,10 +42,12 @@ jobs:
         # Pull --rebase first in case local code pushes landed since checkout
         run: git pull --rebase && git push
 
-      # deploy.yml fires on the push above and handles Vercel deployment via CLI
-      # (bypasses Hobby plan GitHub Actions restriction entirely)
+      # Deploy directly via Vercel CLI — bypasses Hobby plan GitHub Actions restriction
+      - name: Link Vercel project
+        run: |
+          mkdir -p .vercel
+          echo '{"projectId":"${{ secrets.VERCEL_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
+
       - name: Deploy to Vercel
-        run: npx vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
+        timeout-minutes: 3
