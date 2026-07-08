@@ -10,10 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Link Vercel project
+        run: |
+          mkdir -p .vercel
+          printf '{"projectId":"%s","orgId":"%s"}' \
+            "${{ secrets.VERCEL_PROJECT_ID }}" \
+            "${{ secrets.VERCEL_ORG_ID }}" > .vercel/project.json
+
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
+        run: npx vercel@latest deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
+        timeout-minutes: 3
