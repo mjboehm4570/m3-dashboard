@@ -372,7 +372,7 @@ tr:hover td{background:#FAFAFA}
     <div class="modal-actions">
       <button class="btn-danger" id="modal-delete-btn" onclick="deleteMilestone()">Delete</button>
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="handleModalSave()">Save</button>
+      <button class="btn-primary" id="modal-save-btn" onclick="handleModalSave()">Save</button>
     </div>
   </div>
 </div>
@@ -395,7 +395,9 @@ let selectedPhaseId = null;
 let subphase = 'all';
 let editingMilestone = null;  // { phaseId, milestoneId }
 let editingStaff = null;      // { phaseId, staffId }
-let modalMode = 'milestone';  // 'milestone' | 'staff'
+let editingPhase = null;      // { phaseId }
+let phaseEditConfirmData = null; // holds validated data between confirm steps
+let modalMode = 'milestone';  // 'milestone' | 'staff' | 'phase'
 
 // localStorage overrides for PM edits (milestones + staff metadata)
 function getOverrides() {
@@ -417,6 +419,14 @@ function applyOverrides(data) {
         const ov = staffOv[s.id];
         return ov ? { ...s, ...ov } : s;
       });
+    }
+    // Apply phase config overrides: budgetHours, dates, totalWeeks
+    if (o[phase.id + '.config']) {
+      const cfg = o[phase.id + '.config'];
+      if (cfg.budgetHours  !== undefined) phase.budgetHours     = cfg.budgetHours;
+      if (cfg.startDate    !== undefined) phase.startDate        = cfg.startDate || null;
+      if (cfg.expectedEndDate !== undefined) phase.expectedEndDate = cfg.expectedEndDate || null;
+      if (cfg.totalWeeks   !== undefined) phase.totalWeeks       = cfg.totalWeeks;
     }
   });
   return data;
@@ -832,7 +842,10 @@ function renderActiveDetail(phase) {
         <div class="detail-header-right">
           <div class="detail-week">📅 <strong>Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</strong></div>
           <div class="detail-dates">${fmtDate(phase.startDate)} → ${phase.expectedEndDate ? fmtDate(phase.expectedEndDate) : 'TBD'}</div>
-          <div style="margin-top:6px"><span class="status-badge ${badgeCls}">${badgeLabel}</span></div>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:10px;justify-content:flex-end">
+            <span class="status-badge ${badgeCls}">${badgeLabel}</span>
+            <button class="pm-edit-btn full-only" style="font-size:11px" onclick="openEditPhase('${phase.id}')">Edit Phase</button>
+          </div>
         </div>
       </div>
       <div class="detail-metrics-row">
@@ -959,6 +972,9 @@ function renderActiveDetail(phase) {
 
   // Milestones
   html += renderMilestonesPanel(phase);
+
+  // Change log (Leadership only, active phases)
+  html += renderPhaseChangelog(phase.id);
 
   return html;
 }
@@ -1279,6 +1295,7 @@ function deleteMilestone() {
 
 function handleModalSave() {
   if (modalMode === 'staff') saveStaff();
+  else if (modalMode === 'phase') savePhase();
   else saveMilestone();
 }
 
@@ -1286,7 +1303,11 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('visible');
   editingMilestone = null;
   editingStaff = null;
+  editingPhase = null;
+  phaseEditConfirmData = null;
   modalMode = 'milestone';
+  const btn = document.getElementById('modal-save-btn');
+  if (btn) btn.textContent = 'Save';
 }
 
 // ═══════════════════════════════════════════
@@ -1356,6 +1377,163 @@ function saveStaff() {
 
   closeModal();
   renderDetail(phaseId);
+}
+
+// ═══════════════════════════════════════════
+// PHASE EDIT MODAL  (Leadership / full-only)
+// ═══════════════════════════════════════════
+function openEditPhase(phaseId) {
+  const phase = D.phases.find(p => p.id === phaseId);
+  if (!phase) return;
+  editingPhase = { phaseId };
+  phaseEditConfirmData = null;
+  modalMode = 'phase';
+  document.getElementById('modal-title').textContent = 'Edit Phase Details';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-body').innerHTML = buildPhaseForm(phase, null);
+  document.getElementById('modal-save-btn').textContent = 'Review Changes →';
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function buildPhaseForm(phase, pending) {
+  const bh = pending ? pending.budgetHours : phase.budgetHours;
+  const sd = pending ? pending.startDate   : (phase.startDate || '');
+  const ed = pending ? pending.expectedEndDate : (phase.expectedEndDate || '');
+  const tw = pending ? pending.totalWeeks  : phase.totalWeeks;
+  const nt = pending ? pending.note        : '';
+  return `
+    <div class="form-row">
+      <label class="form-label">Budget Hours</label>
+      <input class="form-input" id="phase-modal-budget" type="number" min="0" step="1" value="${bh}">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Start Date</label>
+      <input class="form-input" id="phase-modal-start" type="date" value="${sd}">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Expected End Date</label>
+      <input class="form-input" id="phase-modal-end" type="date" value="${ed}">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Total Weeks</label>
+      <input class="form-input" id="phase-modal-weeks" type="number" min="1" step="1" value="${tw}">
+    </div>
+    <div class="form-row" style="margin-top:16px;border-top:1px solid #334155;padding-top:16px">
+      <label class="form-label">Reason for Change <span style="color:#EF4444">*</span></label>
+      <textarea class="form-textarea" id="phase-modal-note" placeholder="Describe why these project details are being updated…">${nt}</textarea>
+    </div>`;
+}
+
+function buildPhaseConfirmView(phase, data) {
+  const rows = data.changes.map(c => `
+    <div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #1E293B;font-size:13px">
+      <span style="color:#94A3B8;width:130px;flex-shrink:0">${c.label}</span>
+      <span style="color:#F87171;flex:1">${c.from}</span>
+      <span style="color:#94A3B8">→</span>
+      <span style="color:#4ADE80;flex:1;text-align:right">${c.to}</span>
+    </div>`).join('');
+  return `
+    <div style="font-size:13px;color:#94A3B8;margin-bottom:12px">
+      Updating <strong style="color:#CBD5E1">${phase.name}</strong> — confirm the following:
+    </div>
+    <div style="border:1px solid #334155;border-radius:6px;padding:0 12px;margin-bottom:16px">${rows}</div>
+    <div class="form-row">
+      <label class="form-label">Change Note</label>
+      <div style="background:#0F172A;border:1px solid #334155;border-radius:6px;padding:10px 12px;font-size:13px;color:#CBD5E1;line-height:1.5">${data.note}</div>
+    </div>
+    <button class="btn-secondary" style="margin-top:12px;font-size:12px" onclick="backToPhaseEdit()">← Back to editing</button>`;
+}
+
+function savePhase() {
+  if (!editingPhase) return;
+  const { phaseId } = editingPhase;
+  const phase = D.phases.find(p => p.id === phaseId);
+
+  if (!phaseEditConfirmData) {
+    // ── Step 1: validate, build diff, show confirm view ──
+    const budgetHours = parseInt(document.getElementById('phase-modal-budget').value) || 0;
+    const startDate   = document.getElementById('phase-modal-start').value;
+    const expectedEndDate = document.getElementById('phase-modal-end').value;
+    const totalWeeks  = parseInt(document.getElementById('phase-modal-weeks').value) || 0;
+    const note        = document.getElementById('phase-modal-note').value.trim();
+
+    if (!note) {
+      document.getElementById('phase-modal-note').focus();
+      document.getElementById('phase-modal-note').style.borderColor = '#EF4444';
+      return;
+    }
+
+    const changes = [];
+    if (budgetHours !== phase.budgetHours)
+      changes.push({ label: 'Budget Hours', from: fmt(phase.budgetHours) + ' hrs', to: fmt(budgetHours) + ' hrs' });
+    if (startDate !== (phase.startDate || ''))
+      changes.push({ label: 'Start Date', from: fmtDate(phase.startDate), to: fmtDate(startDate) });
+    if (expectedEndDate !== (phase.expectedEndDate || ''))
+      changes.push({ label: 'Expected End', from: fmtDate(phase.expectedEndDate), to: fmtDate(expectedEndDate) });
+    if (totalWeeks !== phase.totalWeeks)
+      changes.push({ label: 'Total Weeks', from: phase.totalWeeks + ' wks', to: totalWeeks + ' wks' });
+
+    if (changes.length === 0) { closeModal(); return; }
+
+    phaseEditConfirmData = { budgetHours, startDate, expectedEndDate, totalWeeks, note, changes };
+    document.getElementById('modal-title').textContent = 'Confirm Changes';
+    document.getElementById('modal-body').innerHTML = buildPhaseConfirmView(phase, phaseEditConfirmData);
+    document.getElementById('modal-save-btn').textContent = 'Confirm Change';
+  } else {
+    // ── Step 2: commit ──
+    const { budgetHours, startDate, expectedEndDate, totalWeeks, note, changes } = phaseEditConfirmData;
+
+    phase.budgetHours   = budgetHours;
+    phase.startDate     = startDate || null;
+    phase.expectedEndDate = expectedEndDate || null;
+    phase.totalWeeks    = totalWeeks;
+
+    const o = getOverrides();
+    o[phaseId + '.config'] = { budgetHours, startDate, expectedEndDate, totalWeeks };
+    if (!o.changelog) o.changelog = [];
+    o.changelog.unshift({
+      ts:        new Date().toISOString(),
+      phaseId,
+      phaseName: phase.name,
+      note,
+      changes
+    });
+    saveOverrides(o);
+
+    closeModal();
+    renderDetail(phaseId);
+  }
+}
+
+function backToPhaseEdit() {
+  const phase = D.phases.find(p => p.id === editingPhase.phaseId);
+  const pending = phaseEditConfirmData;
+  phaseEditConfirmData = null;
+  document.getElementById('modal-title').textContent = 'Edit Phase Details';
+  document.getElementById('modal-body').innerHTML = buildPhaseForm(phase, pending);
+  document.getElementById('modal-save-btn').textContent = 'Review Changes →';
+}
+
+function renderPhaseChangelog(phaseId) {
+  const o = getOverrides();
+  const entries = (o.changelog || []).filter(e => e.phaseId === phaseId);
+  if (!entries.length) return '';
+  const rows = entries.slice(0, 5).map(e => {
+    const d = new Date(e.ts);
+    const when = d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+               + ' ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    const changeList = e.changes.map(c => `${c.label}: ${c.from} → ${c.to}`).join(' · ');
+    return `<tr>
+      <td style="color:#94A3B8;white-space:nowrap;padding-right:12px">${when}</td>
+      <td style="color:#CBD5E1">${changeList}</td>
+      <td style="color:#94A3B8;font-style:italic;padding-left:12px">"${e.note}"</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="full-only" style="margin-top:16px">
+      <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Change Log</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">${rows}</table>
+    </div>`;
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
