@@ -43,11 +43,4 @@ jobs:
         # Pull --rebase first in case local code pushes landed since checkout
         run: git pull --rebase && git push
 
-      # ── Vercel deploy hook ──────────────────────────────────────────────
-      # Vercel Hobby plan blocks deploys triggered by GitHub Actions (non-owner pusher).
-      # The deploy hook bypasses that restriction entirely.
-      # Runs regardless of whether data.json changed (if: always() ensures this step
-      # isn't skipped even when the commit step was a no-op).
-      - name: Trigger Vercel deploy
-        if: always()
-        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
+      # Vercel deploy is handled by deploy.yml, which fires on every push to main.
