@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-08T12:11:48.204Z",
+  "lastUpdated": "2026-07-08T14:35:17.273Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 4,
       "budgetHours": 1765,
-      "usedHours": 185,
+      "usedHours": 178,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,7 +38,7 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 162,
+          "usedHours": 154,
           "weekHours": 3
         },
         {
@@ -46,8 +46,8 @@
           "taskId": 285,
           "name": "Discovery Raivan",
           "label": "1B",
-          "usedHours": 23,
-          "weekHours": 0
+          "usedHours": 24,
+          "weekHours": 4
         }
       ],
       "staff": [
@@ -107,7 +107,7 @@
           "hoursTotal": 56,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 52,
+            "1a": 44,
             "1b": 1
           },
           "subphaseWeekHours": {
@@ -120,7 +120,7 @@
           "name": "Rodri L.",
           "role": "Tech Lead / Arch.",
           "hoursThisWeek": 0,
-          "hoursTotal": 38,
+          "hoursTotal": 44,
           "hoursAllocated": 210,
           "subphaseHours": {
             "1a": 24,
@@ -168,7 +168,7 @@
           "name": "Lucia C.",
           "role": "Designer",
           "hoursThisWeek": 0,
-          "hoursTotal": 72,
+          "hoursTotal": 84,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 72,
@@ -177,6 +177,22 @@
           "subphaseWeekHours": {
             "1a": 0,
             "1b": 0
+          }
+        },
+        {
+          "id": "rafaelt",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 4,
+          "hoursTotal": 4,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 1
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 4
           }
         }
       ],
