@@ -749,7 +749,10 @@ function renderUpcomingDetail(phase) {
           <div class="detail-phase-name">${phase.name}</div>
           <div class="detail-phase-sub">${phase.subtitle}</div>
         </div>
-        <span class="status-badge badge-upcoming">Upcoming</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="status-badge badge-upcoming">Upcoming</span>
+          <button class="pm-edit-btn full-only" style="font-size:11px" onclick="openEditPhase('${phase.id}')">Edit Phase</button>
+        </div>
       </div>
     </div>
     <div class="upcoming-detail">
@@ -794,7 +797,10 @@ function renderRetainerDetail(phase) {
           <div class="detail-phase-name">${phase.name}</div>
           <div class="detail-phase-sub">${phase.subtitle}</div>
         </div>
-        <span class="status-badge badge-upcoming">Upcoming</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="status-badge badge-upcoming">Upcoming</span>
+          <button class="pm-edit-btn full-only" style="font-size:11px" onclick="openEditPhase('${phase.id}')">Edit Phase</button>
+        </div>
       </div>
     </div>
     <div class="upcoming-detail">
