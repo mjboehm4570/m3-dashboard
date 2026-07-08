@@ -39,17 +39,7 @@ jobs:
             git commit -m "chore: nightly data refresh $(date -u '+%Y-%m-%d %H:%M UTC')"
 
       - name: Push changes
-        # Pull --rebase first in case local code pushes landed since checkout
         run: git pull --rebase && git push
 
-      # Deploy directly via Vercel CLI — bypasses Hobby plan GitHub Actions restriction
-      - name: Link Vercel project
-        run: |
-          mkdir -p .vercel
-          printf '{"projectId":"%s","orgId":"%s"}' \
-            "${{ secrets.VERCEL_PROJECT_ID }}" \
-            "${{ secrets.VERCEL_ORG_ID }}" > .vercel/project.json
-
-      - name: Deploy to Vercel
-        run: npx vercel@latest deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
-        timeout-minutes: 3
+      - name: Trigger Vercel deploy
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"

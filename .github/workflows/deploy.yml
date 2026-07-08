@@ -8,15 +8,5 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Link Vercel project
-        run: |
-          mkdir -p .vercel
-          printf '{"projectId":"%s","orgId":"%s"}' \
-            "${{ secrets.VERCEL_PROJECT_ID }}" \
-            "${{ secrets.VERCEL_ORG_ID }}" > .vercel/project.json
-
-      - name: Deploy to Vercel
-        run: npx vercel@latest deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
-        timeout-minutes: 3
+      - name: Trigger Vercel deploy
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
