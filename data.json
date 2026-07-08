@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-07T19:22:30.547Z",
+  "lastUpdated": "2026-07-08T12:11:48.204Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 4,
       "budgetHours": 1765,
-      "usedHours": 178,
+      "usedHours": 185,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,8 +38,8 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 155,
-          "weekHours": 2
+          "usedHours": 162,
+          "weekHours": 3
         },
         {
           "id": "1b",
@@ -103,15 +103,15 @@
           "id": "tereg",
           "name": "Tere G.",
           "role": "Product Designer",
-          "hoursThisWeek": 2,
-          "hoursTotal": 54,
+          "hoursThisWeek": 3,
+          "hoursTotal": 56,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 46,
+            "1a": 52,
             "1b": 1
           },
           "subphaseWeekHours": {
-            "1a": 2,
+            "1a": 3,
             "1b": 24
           }
         },
