@@ -46,5 +46,5 @@ jobs:
       # Vercel Hobby plan blocks deploys from GitHub Actions (non-owner pusher).
       # Fix: create a deploy hook in Vercel → Project Settings → Git → Deploy Hooks,
       # add it as GitHub secret VERCEL_DEPLOY_HOOK, then uncomment the line below.
-      # - name: Trigger Vercel deploy
-      #   run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
+      - name: Trigger Vercel deploy
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
