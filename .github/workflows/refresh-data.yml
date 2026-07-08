@@ -3,7 +3,6 @@ name: Nightly Data Refresh
 on:
   # Runs at 6:00 AM Central Time
   # CDT (UTC-5) → 11:00 UTC  |  CST (UTC-6) → 12:00 UTC
-  # Using 11:00 UTC covers CDT; adjust to 12:00 in winter if preferred
   schedule:
     - cron: '0 11 * * *'
 
@@ -43,4 +42,10 @@ jobs:
         # Pull --rebase first in case local code pushes landed since checkout
         run: git pull --rebase && git push
 
-      # Vercel deploy is handled by deploy.yml, which fires on every push to main.
+      # deploy.yml fires on the push above and handles Vercel deployment via CLI
+      # (bypasses Hobby plan GitHub Actions restriction entirely)
+      - name: Deploy to Vercel
+        run: npx vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
