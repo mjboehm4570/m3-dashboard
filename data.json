@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-08T14:35:17.273Z",
+  "lastUpdated": "2026-07-09T13:41:14.878Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -38,7 +38,7 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 154,
+          "usedHours": 155,
           "weekHours": 3
         },
         {
@@ -46,8 +46,8 @@
           "taskId": 285,
           "name": "Discovery Raivan",
           "label": "1B",
-          "usedHours": 24,
-          "weekHours": 4
+          "usedHours": 23,
+          "weekHours": 10
         }
       ],
       "staff": [
@@ -104,10 +104,10 @@
           "name": "Tere G.",
           "role": "Product Designer",
           "hoursThisWeek": 3,
-          "hoursTotal": 56,
+          "hoursTotal": 60,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 44,
+            "1a": 46,
             "1b": 1
           },
           "subphaseWeekHours": {
@@ -183,8 +183,8 @@
           "id": "rafaelt",
           "name": "Rafael T.",
           "role": "Team Member",
-          "hoursThisWeek": 4,
-          "hoursTotal": 4,
+          "hoursThisWeek": 10,
+          "hoursTotal": 10,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
@@ -192,7 +192,23 @@
           },
           "subphaseWeekHours": {
             "1a": 0,
-            "1b": 4
+            "1b": 10
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 10,
+          "hoursTotal": 10,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 10
           }
         }
       ],
