@@ -7,34 +7,23 @@ The HTML/JS app reads `data.json` at page load — no backend, no database.
 
 ---
 
-## Known Vercel Deployment Issue ⚠️
+## Vercel Deployment Issue — RESOLVED (2026-07-08)
 
-**Problem:** All GitHub Actions commits are blocked by Vercel Hobby plan.
+**Problem (historical):** All GitHub Actions commits were blocked by Vercel Hobby plan.
 
 > "The deployment was blocked because the commit author did not have contributing access to the project on Vercel. The Hobby Plan does not support collaboration for private repositories."
 
-**Root cause:** Vercel's GitHub integration checks the *GitHub API-level pusher identity*, not the git commit author metadata. Even setting `git config user.name "mjboehm4570"` in the workflow does not help — GitHub Actions is always treated as a non-owner pusher on a private repo under the Hobby plan.
+**Root cause:** Vercel's GitHub integration checks the *GitHub API-level pusher identity*, not the git commit author metadata. GitHub Actions was always treated as a non-owner pusher — but per Vercel's own error message, this restriction only applies to **private** repos on the Hobby plan.
 
-**What does NOT work:**
-- Changing `git config user.name` / `git config user.email` in the workflow
-- Upgrading `actions/checkout` version
+**Fix that landed: made the repo public.** `mjboehm4570/m3-dashboard` was switched from private to public on 2026-07-08. Confirmed via Vercel deployment history: the commit right before going public (`35158a1`, "revert: back to deploy hook approach") shows a single **Blocked** deployment; every commit from `de83d80` ("test: verify Vercel auto-deploy on public repo") onward shows deployments succeeding natively — no workaround needed.
 
-**Real fix — Vercel Deploy Hook:**
-Replace Vercel's GitHub integration auto-deploy with a deploy hook URL that the workflow calls explicitly. Deploy hooks are not subject to collaborator restrictions.
+**Deploy-hook workaround retired.** We'd previously built a `VERCEL_DEPLOY_HOOK`-based workaround (a dedicated `deploy.yml` workflow plus a curl step at the end of `refresh-data.yml`) to bypass the block. That's no longer needed now that native Git-push auto-deploy works, and was actively causing **double deployments** per push. As of this cleanup:
+- `.github/workflows/deploy.yml` — deleted
+- `.github/workflows/refresh-data.yml` — "Trigger Vercel deploy" step removed
+- `VERCEL_DEPLOY_HOOK` GitHub secret — should be removed (Settings → Secrets)
+- The deploy hook itself should be deleted in Vercel dashboard → Project Settings → Git → Deploy Hooks
 
-Steps to implement:
-1. In Vercel dashboard → Project Settings → Git → Deploy Hooks → create a hook named "nightly-refresh" on branch `main`
-2. Copy the generated URL (looks like `https://api.vercel.com/v1/integrations/deploy/prj_.../...`)
-3. Add it as a GitHub Actions secret named `VERCEL_DEPLOY_HOOK`
-4. Add this step to `.github/workflows/refresh-data.yml` after the push step:
-   ```yaml
-   - name: Trigger Vercel deploy
-     run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
-   ```
-5. Optionally disconnect the GitHub ↔ Vercel automatic integration in Vercel Project Settings → Git, so only explicit hook calls trigger deploys (prevents double deploys on manual pushes).
-
-**Workaround until deploy hook is set up:**
-After any git push from this repo, manually trigger a redeploy from the Vercel dashboard (Deployments → Redeploy on the latest commit).
+**If deploys ever get blocked again:** don't recreate the deploy-hook workaround first — check whether the repo accidentally went private again, since that's the actual root cause.
 
 ---
 
@@ -96,15 +85,14 @@ Known pending confirmations:
 ---
 
 ## Git / Deploy Workflow
-- Repo: `https://github.com/mjboehm4570/m3-dashboard` (private)
-- Branch: `main` → auto-deploys to Vercel (when Hobby plan block is resolved via deploy hook)
-- Claude cannot run git commands directly in the sandbox on a Mac-mounted filesystem — use `mcp__Control_your_Mac__osascript` to run git in the user's Terminal
+- Repo: `https://github.com/mjboehm4570/m3-dashboard` (public, since 2026-07-08 — see deployment fix above)
+- Branch: `main` → auto-deploys to Vercel natively on push (no deploy hook needed)
 - If push is rejected with "fetch first", run `git pull --rebase && git push`
 
 ---
 
 ## Pending / Future Work
-- [ ] Wire up Vercel deploy hook (see above) to fix nightly deployment
+- [ ] Remove `VERCEL_DEPLOY_HOOK` GitHub secret and delete the hook in Vercel dashboard (leftover from the retired workaround)
 - [ ] Replace localStorage overrides with Airtable for cross-device persistence
 - [ ] Confirm Kevin M. and Sarah K. exact ProjectX full names
 - [ ] Update PRD sections 2 and 5.2 to reflect Phase 1A/1B split

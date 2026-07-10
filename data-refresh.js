@@ -368,30 +368,53 @@ async function main() {
         // Find the ProjectX name that maps to this staff ID
         const pxName = Object.entries(STAFF_NAME_TO_ID).find(([, id]) => id === s.id)?.[0];
 
-        // Fall back to fuzzy first-name match if exact mapping not found
+        // Fall back to fuzzy first-name match if exact mapping not found —
+        // OR if the exact mapping's name has zero data anywhere in this pull,
+        // which usually means STAFF_NAME_TO_ID's spelling doesn't exactly match
+        // what ProjectX reports for this person (e.g. a middle name/initial),
+        // not that they've genuinely never logged an hour.
         const findByFirstName = (nameMap) =>
           Object.entries(nameMap).find(([name]) =>
             name.toLowerCase().startsWith(s.name.toLowerCase().split(' ')[0].toLowerCase())
           );
 
-        const totalEntry = pxName
-          ? [pxName, staffTotalsAll[pxName] ?? 0]
-          : findByFirstName(staffTotalsAll);
-        const weekEntry  = pxName
-          ? [pxName, staffTotalsWeek[pxName] ?? 0]
-          : findByFirstName(staffTotalsWeek);
+        const hasAnyData = (name) =>
+          !!name && (
+            (staffTaskAll[name]  && Object.keys(staffTaskAll[name]).length  > 0) ||
+            (staffTaskWeek[name] && Object.keys(staffTaskWeek[name]).length > 0) ||
+            staffTotalsAll[name]  != null ||
+            staffTotalsWeek[name] != null
+          );
 
-        const hoursTotal    = totalEntry ? Math.round(totalEntry[1]) : s.hoursTotal;
-        const hoursThisWeek = weekEntry  ? Math.round(weekEntry[1])  : s.hoursThisWeek;
+        // grouped_by_users has no task filter, so its hour totals span every
+        // phase of the project — it's only used here (and via staffTaskAll/Week
+        // below, which are task-level) to resolve which ProjectX full_name this
+        // person is, never as the hoursTotal/hoursThisWeek value directly.
+        const pxNameResolved =
+          (hasAnyData(pxName) && pxName) ||
+          findByFirstName(staffTaskAll)?.[0]   ||
+          findByFirstName(staffTaskWeek)?.[0]  ||
+          findByFirstName(staffTotalsAll)?.[0] ||
+          findByFirstName(staffTotalsWeek)?.[0] ||
+          null;
+
+        const userTaskAll  = pxNameResolved ? (staffTaskAll[pxNameResolved]  || {}) : {};
+        const userTaskWeek = pxNameResolved ? (staffTaskWeek[pxNameResolved] || {}) : {};
+
+        // Phase-scoped totals: sum only the hours tagged to this phase's task IDs
+        // (taskIds, defined above), so hours logged against other phases' tasks
+        // don't inflate this phase's staff table.
+        const phaseTotal = taskIds.reduce((sum, tid) => sum + (userTaskAll[tid]  || 0), 0);
+        const phaseWeek  = taskIds.reduce((sum, tid) => sum + (userTaskWeek[tid] || 0), 0);
+
+        const hoursTotal    = pxNameResolved ? Math.round(phaseTotal) : s.hoursTotal;
+        const hoursThisWeek = pxNameResolved ? Math.round(phaseWeek)  : s.hoursThisWeek;
 
         // Subphase hours per staff member (from flat entries)
-        const pxNameResolved = totalEntry?.[0];
         const subphaseHours     = { ...s.subphaseHours };
         const subphaseWeekHours = { ...s.subphaseWeekHours };
 
         if (pxNameResolved) {
-          const userTaskAll  = staffTaskAll[pxNameResolved]  || {};
-          const userTaskWeek = staffTaskWeek[pxNameResolved] || {};
           for (const [taskId, spId] of Object.entries(TASK_TO_SUBPHASE)) {
             if (userTaskAll[taskId]  != null) subphaseHours[spId]     = Math.round(userTaskAll[taskId]);
             if (userTaskWeek[taskId] != null) subphaseWeekHours[spId] = Math.round(userTaskWeek[taskId]);
