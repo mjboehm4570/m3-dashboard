@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-10T13:03:14.875Z",
+  "lastUpdated": "2026-07-11T11:41:50.673Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 4,
       "budgetHours": 1765,
-      "usedHours": 185,
+      "usedHours": 178,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,7 +38,7 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 162,
+          "usedHours": 155,
           "weekHours": 7
         },
         {
@@ -103,11 +103,11 @@
           "id": "tereg",
           "name": "Tere G.",
           "role": "Product Designer",
-          "hoursThisWeek": 10,
-          "hoursTotal": 66,
+          "hoursThisWeek": 7,
+          "hoursTotal": 46,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 52,
+            "1a": 46,
             "1b": 1
           },
           "subphaseWeekHours": {
@@ -120,7 +120,7 @@
           "name": "Rodri L.",
           "role": "Tech Lead / Arch.",
           "hoursThisWeek": 0,
-          "hoursTotal": 44,
+          "hoursTotal": 38,
           "hoursAllocated": 210,
           "subphaseHours": {
             "1a": 24,
@@ -168,7 +168,7 @@
           "name": "Lucia C.",
           "role": "Designer",
           "hoursThisWeek": 0,
-          "hoursTotal": 84,
+          "hoursTotal": 72,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 72,
@@ -184,7 +184,7 @@
           "name": "Rafael T.",
           "role": "Team Member",
           "hoursThisWeek": 10,
-          "hoursTotal": 10,
+          "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
@@ -200,7 +200,7 @@
           "name": "Rafael T.",
           "role": "Team Member",
           "hoursThisWeek": 10,
-          "hoursTotal": 10,
+          "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
@@ -216,7 +216,23 @@
           "name": "Rafael T.",
           "role": "Team Member",
           "hoursThisWeek": 10,
-          "hoursTotal": 10,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 10
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 10,
+          "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
