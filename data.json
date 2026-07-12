@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-11T11:41:50.673Z",
+  "lastUpdated": "2026-07-12T11:49:45.621Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -189,6 +189,22 @@
           "subphaseHours": {
             "1a": 0,
             "1b": 1
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 10
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 10,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
           },
           "subphaseWeekHours": {
             "1a": 0,
