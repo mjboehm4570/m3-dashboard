@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-12T11:49:45.621Z",
+  "lastUpdated": "2026-07-13T13:11:09.641Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 4,
       "budgetHours": 1765,
-      "usedHours": 178,
+      "usedHours": 185,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,8 +38,8 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 155,
-          "weekHours": 7
+          "usedHours": 162,
+          "weekHours": 0
         },
         {
           "id": "1b",
@@ -47,7 +47,7 @@
           "name": "Discovery Raivan",
           "label": "1B",
           "usedHours": 23,
-          "weekHours": 10
+          "weekHours": 0
         }
       ],
       "staff": [
@@ -103,11 +103,11 @@
           "id": "tereg",
           "name": "Tere G.",
           "role": "Product Designer",
-          "hoursThisWeek": 7,
-          "hoursTotal": 46,
+          "hoursThisWeek": 0,
+          "hoursTotal": 53,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 46,
+            "1a": 52,
             "1b": 1
           },
           "subphaseWeekHours": {
@@ -183,7 +183,7 @@
           "id": "rafaelt",
           "name": "Rafael T.",
           "role": "Team Member",
-          "hoursThisWeek": 10,
+          "hoursThisWeek": 0,
           "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
@@ -199,7 +199,7 @@
           "id": "rafael.torre",
           "name": "Rafael T.",
           "role": "Team Member",
-          "hoursThisWeek": 10,
+          "hoursThisWeek": 0,
           "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
@@ -215,7 +215,7 @@
           "id": "rafael.torre",
           "name": "Rafael T.",
           "role": "Team Member",
-          "hoursThisWeek": 10,
+          "hoursThisWeek": 0,
           "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
@@ -231,7 +231,7 @@
           "id": "rafael.torre",
           "name": "Rafael T.",
           "role": "Team Member",
-          "hoursThisWeek": 10,
+          "hoursThisWeek": 0,
           "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
@@ -247,7 +247,7 @@
           "id": "rafael.torre",
           "name": "Rafael T.",
           "role": "Team Member",
-          "hoursThisWeek": 10,
+          "hoursThisWeek": 0,
           "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
@@ -257,6 +257,22 @@
           "subphaseWeekHours": {
             "1a": 0,
             "1b": 10
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 0
           }
         }
       ],
