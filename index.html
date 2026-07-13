@@ -384,6 +384,7 @@ tr:hover td{background:#FAFAFA}
 const TEAM_PW = 'm3-team-2026';
 const FULL_PW = 'm3-lead-2026';
 const DATA_URL = './data.json';
+const API_URL  = '/api/state';   // serverless Airtable proxy (falls back to localStorage if unavailable)
 
 // ═══════════════════════════════════════════
 // STATE
@@ -398,13 +399,56 @@ let editingStaff = null;      // { phaseId, staffId }
 let editingPhase = null;      // { phaseId }
 let phaseEditConfirmData = null; // holds validated data between confirm steps
 let modalMode = 'milestone';  // 'milestone' | 'staff' | 'phase'
+let overridesCache = {};      // in-memory PM overrides (server-backed, localStorage-cached)
 
-// localStorage overrides for PM edits (milestones + staff metadata)
-function getOverrides() {
-  try { return JSON.parse(localStorage.getItem('m3-overrides') || '{}'); } catch(e) { return {}; }
+// ═══════════════════════════════════════════
+// PM OVERRIDES  (server-backed via /api/state, localStorage as offline cache)
+// ═══════════════════════════════════════════
+const LS_KEY    = 'm3-overrides';
+const LS_SECRET = 'm3-edit-secret';
+
+// Synchronous accessor used everywhere in the UI — returns the loaded cache.
+function getOverrides() { return overridesCache; }
+
+function cacheOverridesLocal() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(overridesCache)); } catch (e) {}
 }
-function saveOverrides(o) {
-  localStorage.setItem('m3-overrides', JSON.stringify(o));
+function readOverridesLocal() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (e) { return {}; }
+}
+
+// Load overrides from the server; fall back to the localStorage cache if the
+// backend isn't reachable/configured yet (keeps the app fully usable offline).
+async function loadState() {
+  try {
+    const r = await fetch(API_URL, { method: 'GET' });
+    if (!r.ok) throw new Error(r.status);
+    overridesCache = await r.json();
+    cacheOverridesLocal();          // keep the offline cache fresh
+  } catch (e) {
+    overridesCache = readOverridesLocal();
+  }
+}
+
+// Persist a single mutation to the server; always mirror to localStorage first
+// so an edit is never lost even if the backend is down.
+async function remoteSave(op, payload) {
+  cacheOverridesLocal();
+  const send = secret => fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-edit-secret': secret || '' },
+    body: JSON.stringify({ op, ...payload }),
+  });
+  try {
+    let r = await send(localStorage.getItem(LS_SECRET));
+    if (r.status === 401) {
+      const secret = prompt('Enter the edit passphrase to sync changes to the shared database:');
+      if (secret) { localStorage.setItem(LS_SECRET, secret); r = await send(secret); }
+    }
+    if (!r.ok && r.status !== 503) throw new Error(r.status);
+  } catch (e) {
+    console.warn('Edit saved locally but not synced to the shared database:', e.message || e);
+  }
 }
 function applyOverrides(data) {
   const o = getOverrides();
@@ -435,20 +479,21 @@ function applyOverrides(data) {
 // ═══════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════
-function loadData() {
+async function loadData() {
   document.getElementById('loading-screen').style.display = 'flex';
   document.getElementById('error-screen').style.display = 'none';
-  fetch(DATA_URL)
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(data => {
-      D = applyOverrides(data);
-      document.getElementById('loading-screen').style.display = 'none';
-      document.getElementById('login-overlay').classList.add('visible');
-    })
-    .catch(() => {
-      document.getElementById('loading-screen').style.display = 'none';
-      document.getElementById('error-screen').style.display = 'flex';
-    });
+  try {
+    const r = await fetch(DATA_URL);
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    await loadState();               // PM overrides (server → localStorage fallback)
+    D = applyOverrides(data);
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('login-overlay').classList.add('visible');
+  } catch (e) {
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('error-screen').style.display = 'flex';
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1279,10 +1324,10 @@ function saveMilestone() {
     phase.milestones.push(newM);
   }
 
-  // Persist to localStorage
+  // Persist: update cache, sync the phase's full milestone set to the server
   const o = getOverrides();
   o[phaseId + '.milestones'] = phase.milestones;
-  saveOverrides(o);
+  remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
 
   closeModal();
   renderDetail(phaseId);
@@ -1294,7 +1339,7 @@ function deleteMilestone() {
   phase.milestones = phase.milestones.filter(m => m.id !== milestoneId);
   const o = getOverrides();
   o[phaseId + '.milestones'] = phase.milestones;
-  saveOverrides(o);
+  remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
   closeModal();
   renderDetail(phaseId);
 }
@@ -1375,11 +1420,11 @@ function saveStaff() {
   s.role = role;
   s.hoursAllocated = hoursAllocated;
 
-  // Persist to localStorage
+  // Persist: update cache, sync this staff patch to the server
   const o = getOverrides();
   if (!o[phaseId + '.staff']) o[phaseId + '.staff'] = {};
   o[phaseId + '.staff'][staffId] = { name, role, hoursAllocated };
-  saveOverrides(o);
+  remoteSave('upsertStaff', { phaseId, staffId, patch: { name, role, hoursAllocated } });
 
   closeModal();
   renderDetail(phaseId);
@@ -1497,14 +1542,10 @@ function savePhase() {
     const o = getOverrides();
     o[phaseId + '.config'] = { budgetHours, startDate, expectedEndDate, totalWeeks };
     if (!o.changelog) o.changelog = [];
-    o.changelog.unshift({
-      ts:        new Date().toISOString(),
-      phaseId,
-      phaseName: phase.name,
-      note,
-      changes
-    });
-    saveOverrides(o);
+    const entry = { ts: new Date().toISOString(), phaseId, phaseName: phase.name, note, changes };
+    o.changelog.unshift(entry);
+    remoteSave('upsertConfig', { phaseId, config: { budgetHours, startDate, expectedEndDate, totalWeeks } });
+    remoteSave('appendChangelog', { entry });
 
     closeModal();
     renderDetail(phaseId);

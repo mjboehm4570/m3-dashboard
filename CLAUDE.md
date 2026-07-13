@@ -60,8 +60,13 @@ Leadership-only UI elements use class `full-only`; `body[data-role="full"]` show
 
 ---
 
-## localStorage Overrides (`m3-overrides` key)
-PM/Leadership can edit data without touching code. All edits persist in localStorage:
+## PM Overrides — Airtable-backed via serverless proxy (Phase 1, 2026-07-10)
+
+PM/Leadership can edit data without touching code. Edits now persist to **Airtable through a serverless proxy** (`api/state.js`), with **localStorage as an offline cache/fallback**.
+
+**Flow:** on load, the client `fetch`es `GET /api/state` for the overrides doc and mirrors it into `localStorage['m3-overrides']`. Each edit updates the in-memory cache, writes localStorage, and `POST`s a granular mutation to `/api/state`. If the API is unreachable or Airtable isn't configured yet, the client falls back to localStorage and the app keeps working (writes warn in console but are not lost).
+
+The overrides document shape (returned by GET, cached in localStorage) is unchanged:
 
 | Key pattern | What it stores |
 |-------------|---------------|
@@ -70,7 +75,21 @@ PM/Leadership can edit data without touching code. All edits persist in localSto
 | `phaseId + '.config'` | Phase config overrides: `{ budgetHours, startDate, expectedEndDate, totalWeeks }` |
 | `changelog` | Array of `{ ts, phaseId, phaseName, note, changes[] }` — phase edit history |
 
-**Limitation:** localStorage is per-browser, per-device. A PM's edits on their laptop won't show on another device. Future fix: replace with Airtable API calls.
+**POST ops:** `savePhaseMilestones` (upserts the phase's whole milestone set + deletes vanished rows), `upsertStaff`, `upsertConfig`, `appendChangelog`.
+
+### Airtable setup (required for cross-device persistence)
+1. Create an Airtable base with 4 tables (field names must match exactly):
+   - **Milestones**: `phaseId`, `milestoneId`, `name`, `type`, `targetDate`, `startDate`, `status`, `notes`, `assigneeIds` (long text), `completionPct` (number), `lastUpdated`
+   - **StaffMeta**: `phaseId`, `staffId`, `name`, `role`, `hoursAllocated` (number)
+   - **PhaseConfig**: `phaseId`, `startDate`, `expectedEndDate`, `budgetHours` (number), `totalWeeks` (number)
+   - **Changelog**: `ts`, `phaseId`, `phaseName`, `note`, `changes` (long text / JSON string)
+2. In Vercel → Project Settings → Environment Variables, set: `AIRTABLE_TOKEN` (PAT scoped to the base, `data.records:read`+`write`), `AIRTABLE_BASE_ID` (`app…`), and `EDIT_SECRET` (a passphrase gating writes).
+3. Seed the base once: `AIRTABLE_TOKEN=… AIRTABLE_BASE_ID=… node scripts/seed-airtable.js` (supports `--dry-run`).
+4. On first save in the Leadership view, the client prompts for the `EDIT_SECRET` and caches it in `localStorage['m3-edit-secret']`.
+
+**Security note:** roles are client-side only and `EDIT_SECRET` is the sole write gate — adequate for an internal tool, not strong auth. `startDate` (milestone) and `assigneeIds` columns exist for Phase 2 and are unused today.
+
+**Local dev:** without the Vercel functions runtime (`/api/state` returns 404), the app runs entirely on localStorage — no setup needed to work on the UI.
 
 ---
 
@@ -93,6 +112,13 @@ Known pending confirmations:
 
 ## Pending / Future Work
 - [ ] Remove `VERCEL_DEPLOY_HOOK` GitHub secret and delete the hook in Vercel dashboard (leftover from the retired workaround)
-- [ ] Replace localStorage overrides with Airtable for cross-device persistence
+- [x] Replace localStorage overrides with Airtable for cross-device persistence — **code shipped (Phase 1); requires Airtable base + Vercel env vars + seed to activate (see "PM Overrides" above)**
 - [ ] Confirm Kevin M. and Sarah K. exact ProjectX full names
 - [ ] Update PRD sections 2 and 5.2 to reflect Phase 1A/1B split
+
+### Roadmap (planning & intelligence build-out)
+Phase 1 (persistence foundation) done. Next per the approved roadmap:
+- [ ] Phase 2 — enriched milestone model (`startDate` + `assigneeIds`) + assignment rollups + date-based deadline alerts
+- [ ] Phase 3 — Gantt (frappe-gantt): per-phase + program timeline, drag-to-reschedule
+- [ ] Phase 4 — Knowledge-base integration (offline in nightly Action) — *needs KB repo location/structure*
+- [ ] Phase 5 — in-app chatbot (reuses the serverless backend)
