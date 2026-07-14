@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>M3 Phase Tracker · Dualboot</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
 <!--
   DATA: reads from ./data.json on load
   AUTH: two passwords — TEAM_PW (summary) and FULL_PW (drill-down)
@@ -289,6 +291,30 @@ tr:hover td{background:#FAFAFA}
 .assignee-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1.5px solid #E2E8F0;border-radius:20px;font-size:12px;cursor:pointer;user-select:none;color:#64748B}
 .assignee-chip input{margin:0}
 .assignee-chip.on{border-color:#6366F1;background:#EEF2FF;color:#4338CA;font-weight:600}
+/* Phase 3 — Gantt / Timeline */
+.timeline-wrap{padding:8px 12px 16px}
+.gantt-target{min-height:120px;overflow-x:auto}
+.gantt-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.gseg{display:inline-flex;border:1px solid #E2E8F0;border-radius:7px;overflow:hidden}
+.gseg button{background:#fff;border:none;padding:5px 11px;font-size:11px;font-weight:600;color:#64748B;cursor:pointer}
+.gseg button+button{border-left:1px solid #E2E8F0}
+.gseg button.on{background:#6366F1;color:#fff}
+.gseg-label{font-size:11px;color:#94A3B8;font-weight:600;margin-right:2px}
+.gantt-empty,.gantt-unscheduled{padding:14px 20px;font-size:12px;color:#94A3B8}
+.gantt-unscheduled{border-top:1px solid #F1F5F9}
+.gantt-unscheduled strong{color:#64748B}
+/* frappe bar colors by status (custom_class on .bar-wrapper) */
+.gantt .bar-wrapper.g-complete .bar-progress{fill:#16A34A}
+.gantt .bar-wrapper.g-inprogress .bar-progress{fill:#6366F1}
+.gantt .bar-wrapper.g-soon .bar-progress{fill:#F59E0B}
+.gantt .bar-wrapper.g-overdue .bar-progress{fill:#EF4444}
+.gantt .bar-wrapper.g-overdue .bar{fill:#FEE2E2}
+.gantt .bar-wrapper.g-notstarted .bar-progress{fill:#CBD5E1}
+.gantt .bar-wrapper.g-phase-ok .bar-progress{fill:#6366F1}
+.gantt .bar-wrapper.g-phase-risk .bar-progress{fill:#F59E0B}
+.gantt .bar-wrapper.g-phase-risk .bar{fill:#FEF3C7}
+.gantt .bar-wrapper .bar-label{font-size:11px;fill:#fff;font-weight:600}
+.gantt .bar-wrapper .bar-label.big{fill:#475569}
 
 /* ─── UPCOMING DETAIL STATE ─── */
 .upcoming-detail{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:48px 32px;text-align:center;margin-bottom:16px}
@@ -378,6 +404,7 @@ tr:hover td{background:#FAFAFA}
     <div class="topbar-right">
       <div class="nav-tabs">
         <button class="nav-tab active" id="tab-overview" onclick="goToOverview()">Program Overview</button>
+        <button class="nav-tab" id="tab-timeline" onclick="goToTimeline()">Timeline</button>
         <button class="nav-tab" id="tab-detail" onclick="showPage('detail',this)" style="display:none">Phase Detail</button>
       </div>
       <div id="role-badge" class="role-badge team">
@@ -389,6 +416,7 @@ tr:hover td{background:#FAFAFA}
   </div>
 
   <div id="page-overview" class="page active"></div>
+  <div id="page-timeline" class="page"></div>
   <div id="page-detail" class="page"></div>
 </div>
 
@@ -428,6 +456,9 @@ let editingPhase = null;      // { phaseId }
 let phaseEditConfirmData = null; // holds validated data between confirm steps
 let modalMode = 'milestone';  // 'milestone' | 'staff' | 'phase'
 let overridesCache = {};      // in-memory PM overrides (server-backed, localStorage-cached)
+let programGanttView = 'Month';  // Timeline tab view mode
+let phaseGanttView = 'Week';     // per-phase Gantt view mode
+let ganttMetric = 'completion';  // program bar fill: 'completion' | 'hours'
 
 // ═══════════════════════════════════════════
 // PM OVERRIDES  (server-backed via /api/state, localStorage as offline cache)
@@ -813,6 +844,89 @@ function alertStrip(phase) {
 }
 
 // ═══════════════════════════════════════════
+// TIMELINE (program-level Gantt)
+// ═══════════════════════════════════════════
+function goToTimeline() {
+  showPage('timeline', document.getElementById('tab-timeline'));
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const scheduled = D.phases.filter(p => p.startDate && p.expectedEndDate);
+  const unscheduled = D.phases.filter(p => !(p.startDate && p.expectedEndDate));
+  const seg = (val, cur, fn, label) => `<button class="${val === cur ? 'on' : ''}" onclick="${fn}('${val}')">${label}</button>`;
+
+  const html = `
+    <div class="section-label">Program Timeline</div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">All Phases <span class="text-muted text-sm">· ${role === 'full' ? 'drag a bar to reschedule · click to open' : 'click a bar to open'}</span></span>
+        <div class="gantt-controls">
+          <span class="gseg-label">Bar fill</span>
+          <div class="gseg">
+            ${seg('completion', ganttMetric, 'setGanttMetric', 'Completion %')}
+            ${seg('hours', ganttMetric, 'setGanttMetric', 'Hours burned')}
+          </div>
+          <span class="gseg-label">Scale</span>
+          <div class="gseg">
+            ${seg('Week', programGanttView, 'setProgramView', 'Week')}
+            ${seg('Month', programGanttView, 'setProgramView', 'Month')}
+            ${seg('Year', programGanttView, 'setProgramView', 'Year')}
+          </div>
+        </div>
+      </div>
+      ${scheduled.length
+        ? `<div class="timeline-wrap"><div id="program-gantt" class="gantt-target"></div></div>`
+        : `<div class="gantt-empty">No phases have start/end dates yet. Open a phase and use <strong>Edit Phase</strong> to schedule it.</div>`}
+      ${unscheduled.length
+        ? `<div class="gantt-unscheduled">Not yet scheduled: <strong>${unscheduled.map(p => 'Phase ' + p.number).join(', ')}</strong> — set start/end via a phase's “Edit Phase” to place it here.</div>`
+        : ''}
+    </div>`;
+  document.getElementById('page-timeline').innerHTML = html;
+  if (scheduled.length) initProgramGantt(scheduled);
+}
+
+function initProgramGantt(phases) {
+  const el = document.getElementById('program-gantt');
+  if (!el || typeof Gantt === 'undefined') return;
+  const tasks = phases.map(p => {
+    const prog = ganttMetric === 'hours' ? Math.round(burnPct(p)) : (deliverablePct(p.milestones) || 0);
+    const st = phaseHealthState(p);
+    const risk = (st === 'at-risk' || st === 'critical');
+    return {
+      id: p.id,
+      name: 'Phase ' + p.number + ' · ' + p.name,
+      start: p.startDate,
+      end: p.expectedEndDate,
+      progress: Math.min(prog, 100),
+      custom_class: 'g-phase-' + (risk ? 'risk' : 'ok')
+    };
+  });
+  new Gantt(el, tasks, {
+    view_mode: programGanttView,
+    bar_height: 26,
+    padding: 20,
+    on_click: t => goToPhase(t.id),
+    on_date_change: role === 'full' ? (t, s, e) => savePhaseDatesFromGantt(t.id, s, e) : null
+  });
+  scrollGanttToStart(el);
+}
+
+function setGanttMetric(m) { ganttMetric = m; renderTimeline(); }
+function setProgramView(v) { programGanttView = v; renderTimeline(); }
+
+function savePhaseDatesFromGantt(phaseId, start, end) {
+  const phase = D.phases.find(p => p.id === phaseId);
+  if (!phase) return;
+  phase.startDate = toYMD(start);
+  phase.expectedEndDate = toYMD(end);
+  const o = getOverrides();
+  o[phaseId + '.config'] = { budgetHours: phase.budgetHours, startDate: phase.startDate, expectedEndDate: phase.expectedEndDate, totalWeeks: phase.totalWeeks };
+  remoteSave('upsertConfig', { phaseId, config: o[phaseId + '.config'] });
+  renderTimeline();
+}
+
+// ═══════════════════════════════════════════
 // DETAIL
 // ═══════════════════════════════════════════
 function renderDetail(phaseId) {
@@ -830,6 +944,8 @@ function renderDetail(phaseId) {
   }
 
   document.getElementById('page-detail').innerHTML = html;
+  // Init the per-phase Gantt if this view rendered one (active phases only)
+  if (document.getElementById('phase-gantt')) initPhaseGantt(phase);
 }
 
 function renderUpcomingDetail(phase) {
@@ -1072,7 +1188,8 @@ function renderActiveDetail(phase) {
       </div>`;
   }
 
-  // Milestones
+  // Milestone timeline (Gantt) + table
+  html += renderPhaseGanttPanel(phase);
   html += renderMilestonesPanel(phase);
 
   // Milestone assignment rollup (Leadership only)
@@ -1204,6 +1321,74 @@ function renderMilestoneRow(m, phase) {
     <td style="${noteStyle}">${m.notes || '—'}</td>
     <td class="full-only"><button class="pm-edit-btn" onclick="openEditMilestone('${phaseId}','${m.id}')">Edit</button></td>
   </tr>`;
+}
+
+function renderPhaseGanttPanel(phase) {
+  const dated = (phase.milestones || []).filter(m => m.targetDate);
+  const seg = (val, cur, fn, label) => `<button class="${val === cur ? 'on' : ''}" onclick="${fn}('${val}')">${label}</button>`;
+  return `
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Milestone Timeline <span class="text-muted text-sm">· ${role === 'full' ? 'drag a bar to reschedule' : 'visual timeline'}</span></span>
+        <div class="gantt-controls">
+          <span class="gseg-label">Scale</span>
+          <div class="gseg">
+            ${seg('Day', phaseGanttView, 'setPhaseView', 'Day')}
+            ${seg('Week', phaseGanttView, 'setPhaseView', 'Week')}
+            ${seg('Month', phaseGanttView, 'setPhaseView', 'Month')}
+          </div>
+        </div>
+      </div>
+      ${dated.length
+        ? `<div class="timeline-wrap"><div id="phase-gantt" class="gantt-target"></div></div>`
+        : `<div class="gantt-empty">No milestones have a target date yet. Add dates in the table below to see them on the timeline.</div>`}
+    </div>`;
+}
+
+function initPhaseGantt(phase) {
+  const el = document.getElementById('phase-gantt');
+  if (!el || typeof Gantt === 'undefined') return;
+  const dated = (phase.milestones || []).filter(m => m.targetDate);
+  if (!dated.length) return;
+  const tasks = dated.map(m => {
+    const ds = milestoneDateStatus(m, phase);
+    const cls = m.status === 'complete' ? 'g-complete'
+      : ds === 'overdue' ? 'g-overdue'
+      : ds === 'soon' ? 'g-soon'
+      : m.status === 'in_progress' ? 'g-inprogress'
+      : 'g-notstarted';
+    return {
+      id: m.id,
+      name: m.name,
+      start: ganttStart(m, phase),
+      end: m.targetDate,
+      progress: m.completionPct || 0,
+      custom_class: cls
+    };
+  });
+  new Gantt(el, tasks, {
+    view_mode: phaseGanttView,
+    bar_height: 22,
+    padding: 16,
+    on_click: role === 'full' ? t => openEditMilestone(phase.id, t.id) : null,
+    on_date_change: role === 'full' ? (t, s, e) => saveMilestoneDatesFromGantt(phase.id, t.id, s, e) : null
+  });
+  scrollGanttToStart(el);
+}
+
+function setPhaseView(v) { phaseGanttView = v; if (selectedPhaseId) renderDetail(selectedPhaseId); }
+
+function saveMilestoneDatesFromGantt(phaseId, mId, start, end) {
+  const phase = D.phases.find(p => p.id === phaseId);
+  const m = phase && phase.milestones.find(x => x.id === mId);
+  if (!m) return;
+  m.startDate = toYMD(start);
+  m.targetDate = toYMD(end);
+  m.lastUpdated = new Date().toISOString();
+  const o = getOverrides();
+  o[phaseId + '.milestones'] = phase.milestones;
+  remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
+  renderDetail(phaseId);
 }
 
 function renderDeadlinesStrip(phase) {
@@ -1797,6 +1982,39 @@ function initials(name) {
 }
 function milestoneOwners(m, phase) {
   return (m.assigneeIds || []).map(id => (phase.staff || []).find(s => s.id === id)).filter(Boolean);
+}
+
+// ─── Phase 3: Gantt date helpers ───
+// frappe pads the chart start by ~1 month; scroll so the earliest bar sits near the left edge.
+function scrollGanttToStart(el) {
+  // frappe wraps the svg in its own `.gantt-container` (the actual scroll element).
+  // Defer to after layout so it's scrollable (scrollLeft clamps to 0 pre-layout).
+  requestAnimationFrame(() => {
+    const container = el.querySelector('.gantt-container') || el;
+    const bars = [...el.querySelectorAll('.bar-wrapper .bar')];
+    if (!bars.length) return;
+    const minX = Math.min(...bars.map(b => parseFloat(b.getAttribute('x')) || 0));
+    container.scrollLeft = Math.max(0, minX - 40);
+  });
+}
+function toYMD(d) {
+  if (typeof d === 'string') return d.slice(0, 10);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function addDaysYMD(ymd, delta) {
+  const d = new Date(ymd + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+// Display start for a milestone bar: real startDate, else a clamped 2-week lead-in.
+function ganttStart(m, phase) {
+  if (m.startDate) return m.startDate;
+  if (!m.targetDate) return '';
+  let start = addDaysYMD(m.targetDate, -14);
+  if (phase.startDate && start < phase.startDate) start = phase.startDate;
+  if (start > m.targetDate) start = m.targetDate;
+  return start;
 }
 </script>
 </body>
