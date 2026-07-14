@@ -315,6 +315,25 @@ tr:hover td{background:#FAFAFA}
 .gantt .bar-wrapper.g-phase-risk .bar{fill:#FEF3C7}
 .gantt .bar-wrapper .bar-label{font-size:11px;fill:#fff;font-weight:600}
 .gantt .bar-wrapper .bar-label.big{fill:#475569}
+/* Phase 4 — Knowledge Base */
+.kb-layer-head{display:flex;align-items:baseline;gap:8px;margin:18px 0 10px}
+.kb-layer-title{font-size:14px;font-weight:700;color:#1E293B}
+.kb-layer-count{font-size:11px;color:#94A3B8}
+.kb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.kb-card{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.kb-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.kb-title{font-size:13px;font-weight:700;color:#1E293B;text-decoration:none}
+.kb-title:hover{color:#6366F1;text-decoration:underline}
+.kb-path{font-size:10px;color:#94A3B8;font-family:ui-monospace,Menlo,monospace}
+.kb-summary{font-size:12px;color:#64748B;line-height:1.5}
+.kb-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+.kb-chip{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#F1F5F9;color:#64748B}
+.kb-chip.established{background:#DCFCE7;color:#166534}
+.kb-chip.in_progress{background:#DBEAFE;color:#1D4ED8}
+.kb-status-dot{width:6px;height:6px;border-radius:50%;background:#CBD5E1}
+.kb-note{font-size:12px;color:#94A3B8;padding:16px 0}
+.kb-open{font-size:11px;color:#6366F1;text-decoration:none;white-space:nowrap}
+.kb-open:hover{text-decoration:underline}
 
 /* ─── UPCOMING DETAIL STATE ─── */
 .upcoming-detail{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:48px 32px;text-align:center;margin-bottom:16px}
@@ -405,6 +424,7 @@ tr:hover td{background:#FAFAFA}
       <div class="nav-tabs">
         <button class="nav-tab active" id="tab-overview" onclick="goToOverview()">Program Overview</button>
         <button class="nav-tab" id="tab-timeline" onclick="goToTimeline()">Timeline</button>
+        <button class="nav-tab full-only" id="tab-kb" onclick="goToKB()">Knowledge Base</button>
         <button class="nav-tab" id="tab-detail" onclick="showPage('detail',this)" style="display:none">Phase Detail</button>
       </div>
       <div id="role-badge" class="role-badge team">
@@ -417,6 +437,7 @@ tr:hover td{background:#FAFAFA}
 
   <div id="page-overview" class="page active"></div>
   <div id="page-timeline" class="page"></div>
+  <div id="page-kb" class="page"></div>
   <div id="page-detail" class="page"></div>
 </div>
 
@@ -441,6 +462,7 @@ const TEAM_PW = 'm3-team-2026';
 const FULL_PW = 'm3-lead-2026';
 const DATA_URL = './data.json';
 const API_URL  = '/api/state';   // serverless Airtable proxy (falls back to localStorage if unavailable)
+const KB_URL   = '/api/kb';      // serverless read-only proxy for the private knowledge-base repo
 
 // ═══════════════════════════════════════════
 // STATE
@@ -924,6 +946,65 @@ function savePhaseDatesFromGantt(phaseId, start, end) {
   o[phaseId + '.config'] = { budgetHours: phase.budgetHours, startDate: phase.startDate, expectedEndDate: phase.expectedEndDate, totalWeeks: phase.totalWeeks };
   remoteSave('upsertConfig', { phaseId, config: o[phaseId + '.config'] });
   renderTimeline();
+}
+
+// ═══════════════════════════════════════════
+// KNOWLEDGE BASE (Leadership; live read via /api/kb)
+// ═══════════════════════════════════════════
+function goToKB() {
+  showPage('kb', document.getElementById('tab-kb'));
+  renderKB();
+}
+
+async function kbFetch() {
+  const send = secret => fetch(KB_URL, { headers: { 'x-edit-secret': secret || '' } });
+  let r = await send(localStorage.getItem(LS_SECRET));
+  if (r.status === 401) {
+    const secret = prompt('Enter the access passphrase to load the knowledge base:');
+    if (!secret) { const e = new Error('secret required'); e.code = 401; throw e; }
+    localStorage.setItem(LS_SECRET, secret);
+    r = await send(secret);
+  }
+  if (!r.ok) { const e = new Error('http ' + r.status); e.code = r.status; throw e; }
+  return r.json();
+}
+
+function renderKB() {
+  const page = document.getElementById('page-kb');
+  const head = '<div class="section-label">Project Knowledge Base</div>';
+  page.innerHTML = head + '<div class="kb-note">Loading knowledge base…</div>';
+  kbFetch().then(data => {
+    if (!data.layers || !data.layers.length) {
+      page.innerHTML = head + '<div class="kb-note">No documents found in the knowledge base.</div>';
+      return;
+    }
+    let html = `<div class="section-label">Project Knowledge Base <span style="text-transform:none;font-weight:400;color:#94A3B8">· ${data.count} curated docs from <code>${data.repo}</code></span></div>`;
+    data.layers.forEach(L => {
+      html += `<div class="kb-layer-head"><span class="kb-layer-title">${L.label}</span><span class="kb-layer-count">${L.docs.length} doc${L.docs.length !== 1 ? 's' : ''}</span></div><div class="kb-grid">`;
+      L.docs.forEach(d => {
+        const statusChip = d.status ? `<span class="kb-chip ${d.status}">${d.status.replace(/_/g, ' ')}</span>` : '';
+        const ownerChip = d.owner ? `<span class="kb-chip">${d.owner}</span>` : '';
+        const updChip = d.lastUpdated ? `<span class="kb-chip">updated ${fmtDate(d.lastUpdated)}</span>` : '';
+        html += `<div class="kb-card">
+          <div class="kb-card-top">
+            <a class="kb-title" href="${d.url}" target="_blank" rel="noopener">${d.title}</a>
+            <a class="kb-open" href="${d.url}" target="_blank" rel="noopener">GitHub ↗</a>
+          </div>
+          <div class="kb-path">${d.relPath}</div>
+          ${d.summary ? `<div class="kb-summary">${d.summary}</div>` : ''}
+          <div class="kb-meta">${statusChip}${ownerChip}${updChip}</div>
+        </div>`;
+      });
+      html += '</div>';
+    });
+    page.innerHTML = html;
+  }).catch(err => {
+    let msg;
+    if (err.code === 503) msg = 'Knowledge base isn’t configured yet — set <code>KB_REPO_TOKEN</code> in Vercel to enable it.';
+    else if (err.code === 401) msg = 'Access passphrase required. Reopen the Knowledge Base tab to try again.';
+    else msg = 'Could not load the knowledge base (' + (err.message || 'error') + ').';
+    page.innerHTML = head + `<div class="kb-note">${msg}</div>`;
+  });
 }
 
 // ═══════════════════════════════════════════
