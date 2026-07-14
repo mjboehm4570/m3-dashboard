@@ -117,8 +117,8 @@ Known pending confirmations:
 - [ ] Update PRD sections 2 and 5.2 to reflect Phase 1A/1B split
 
 ### Roadmap (planning & intelligence build-out)
-Phase 1 (persistence foundation) done. Next per the approved roadmap:
-- [ ] Phase 2 — enriched milestone model (`startDate` + `assigneeIds`) + assignment rollups + date-based deadline alerts
-- [ ] Phase 3 — Gantt (frappe-gantt): per-phase + program timeline, drag-to-reschedule
+Phases 1–2 done. Next per the approved roadmap:
+- [x] Phase 2 — enriched milestone model + assignment rollups + date-based deadline alerts. Milestones now carry `startDate` + `assigneeIds`; edit modal has a Start Date field and an owner multi-select (from the phase's `staff[]`). Milestone table shows a start→target Timeline column, owner avatars, and overdue/due-soon pills. New `renderDeadlinesStrip` (overdue + due-within-`dueSoonDays` panel, default 7, override via `phase.alertThresholds.dueSoonDays`) and `renderAssignmentRollup` (per-owner assigned/complete/overdue + hours) panels in the active-phase detail. `phaseHealthState` escalates to at-risk on any overdue milestone; overview banner shows an Overdue count + alert. Date helpers: `daysUntil`, `milestoneDateStatus`. `goToOverview` now re-renders so the banner reflects latest edits. All client-side; Airtable columns already existed from Phase 1.
+- [ ] Phase 3 — Gantt (frappe-gantt): per-phase + program timeline, drag-to-reschedule. Program aggregate = dedicated new "Timeline" tab; per-phase panel alongside the milestone table. (See plan file for open design calls.)
 - [ ] Phase 4 — Knowledge-base integration (offline in nightly Action) — *needs KB repo location/structure*
 - [ ] Phase 5 — in-app chatbot (reuses the serverless backend)

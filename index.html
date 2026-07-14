@@ -261,6 +261,34 @@ tr:hover td{background:#FAFAFA}
 .pcs-bar-fill{height:100%;background:#6366F1;border-radius:4px}
 .pcs-pct{font-size:13px;font-weight:800;color:#6366F1}
 .pcs-count{font-size:11px;color:#94A3B8}
+/* Phase 2 — assignees, deadlines, assignment rollup */
+.banner-dot.red{background:#EF4444}
+.ms-owners{display:inline-flex;align-items:center}
+.ms-avatar{width:22px;height:22px;border-radius:50%;background:#EEF2FF;color:#4338CA;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #fff;margin-left:-6px}
+.ms-avatar:first-child{margin-left:0}
+.ms-unassigned{font-size:11px;color:#CBD5E1}
+.due-pill{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.due-overdue{background:#FEE2E2;color:#991B1B}
+.due-soon{background:#FFFBEB;color:#B45309}
+.date-cell-sub{font-size:10px;color:#94A3B8;margin-top:2px}
+.deadline-list{padding:12px 20px 16px;display:flex;flex-direction:column;gap:6px}
+.deadline-item{display:flex;align-items:center;gap:10px;font-size:12px;padding:8px 12px;border-radius:8px;border:1px solid #F1F5F9}
+.deadline-item.overdue{background:#FEF2F2;border-color:#FECACA}
+.deadline-item.soon{background:#FFFBEB;border-color:#FDE68A}
+.deadline-item .di-name{font-weight:600;color:#1E293B}
+.deadline-item .di-meta{color:#94A3B8}
+.deadline-item .di-days{margin-left:auto;font-weight:700;white-space:nowrap}
+.di-days.overdue{color:#991B1B}
+.di-days.soon{color:#B45309}
+.assign-tbody td{padding:9px 12px;font-size:12px;border-top:1px solid #F1F5F9;color:#1E293B}
+.assign-tbody td.num{text-align:center;font-weight:600}
+.assign-badge{display:inline-block;min-width:20px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px}
+.assign-badge.overdue{background:#FEE2E2;color:#991B1B}
+.assign-badge.zero{color:#CBD5E1;font-weight:400}
+.assignee-pick{display:flex;flex-wrap:wrap;gap:8px}
+.assignee-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border:1.5px solid #E2E8F0;border-radius:20px;font-size:12px;cursor:pointer;user-select:none;color:#64748B}
+.assignee-chip input{margin:0}
+.assignee-chip.on{border-color:#6366F1;background:#EEF2FF;color:#4338CA;font-weight:600}
 
 /* ─── UPCOMING DETAIL STATE ─── */
 .upcoming-detail{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:48px 32px;text-align:center;margin-bottom:16px}
@@ -349,7 +377,7 @@ tr:hover td{background:#FAFAFA}
     </div>
     <div class="topbar-right">
       <div class="nav-tabs">
-        <button class="nav-tab active" id="tab-overview" onclick="showPage('overview',this)">Program Overview</button>
+        <button class="nav-tab active" id="tab-overview" onclick="goToOverview()">Program Overview</button>
         <button class="nav-tab" id="tab-detail" onclick="showPage('detail',this)" style="display:none">Phase Detail</button>
       </div>
       <div id="role-badge" class="role-badge team">
@@ -472,6 +500,11 @@ function applyOverrides(data) {
       if (cfg.expectedEndDate !== undefined) phase.expectedEndDate = cfg.expectedEndDate || null;
       if (cfg.totalWeeks   !== undefined) phase.totalWeeks       = cfg.totalWeeks;
     }
+    // Phase 2 migration: ensure every milestone has the new fields
+    (phase.milestones || []).forEach(m => {
+      if (m.startDate === undefined || m.startDate === null) m.startDate = '';
+      if (!Array.isArray(m.assigneeIds)) m.assigneeIds = [];
+    });
   });
   return data;
 }
@@ -561,6 +594,7 @@ function goToPhase(phaseId) {
 }
 
 function goToOverview() {
+  if (D) renderOverview();   // refresh so program health / deadline banner reflect latest edits
   showPage('overview', document.getElementById('tab-overview'));
 }
 
@@ -595,8 +629,9 @@ function phaseHealthState(phase) {
   const t = phase.alertThresholds;
   const bd = bp - tp;
   const pg = dp !== null ? bp - dp : 0;
+  const overdue = (phase.milestones || []).some(m => milestoneDateStatus(m, phase) === 'overdue');
   if (bp >= t.criticalPct || bd >= t.paceCritDelta || pg >= t.progressGapCrit) return 'critical';
-  if (bp >= t.warnPct || bd >= t.paceWarnDelta || pg >= t.progressGapWarn) return 'at-risk';
+  if (bp >= t.warnPct || bd >= t.paceWarnDelta || pg >= t.progressGapWarn || overdue) return 'at-risk';
   return 'on-track';
 }
 
@@ -623,6 +658,14 @@ function renderOverview() {
 
   const atRiskPhase = phases.find(p => phaseHealthState(p) === 'at-risk' || phaseHealthState(p) === 'critical');
 
+  // Deadline tallies across all phases (incomplete milestones with a target date)
+  let overdueTot = 0, soonTot = 0;
+  phases.forEach(p => (p.milestones || []).forEach(m => {
+    const s = milestoneDateStatus(m, p);
+    if (s === 'overdue') overdueTot++;
+    else if (s === 'soon') soonTot++;
+  }));
+
   let html = `
     <div class="health-banner">
       <span class="banner-label">Program Health</span>
@@ -631,12 +674,17 @@ function renderOverview() {
       <div class="banner-stat"><div class="banner-dot yellow"></div><span class="banner-num">${atRisk}</span><span class="banner-text">At Risk</span></div>
       <div class="banner-div"></div>
       <div class="banner-stat"><div class="banner-dot gray"></div><span class="banner-num">${upcoming}</span><span class="banner-text">Upcoming</span></div>
+      ${overdueTot > 0 ? `<div class="banner-div"></div><div class="banner-stat"><div class="banner-dot red"></div><span class="banner-num">${overdueTot}</span><span class="banner-text">Overdue</span></div>` : ''}
       <div class="banner-div"></div>
       <div class="freshness-note">
         <div class="freshness-dot"></div>
         <span>Data as of <strong>${freshStr}</strong> · Syncs nightly from ProjectX</span>
       </div>
-      ${atRiskPhase ? `<div class="banner-alert">⚠️ Phase ${atRiskPhase.number} at risk — click card to view</div>` : ''}
+      ${overdueTot > 0
+        ? `<div class="banner-alert">⏰ ${overdueTot} milestone${overdueTot > 1 ? 's' : ''} overdue${atRiskPhase ? ` · Phase ${atRiskPhase.number} at risk` : ''}</div>`
+        : (atRiskPhase
+            ? `<div class="banner-alert">⚠️ Phase ${atRiskPhase.number} at risk — click card to view</div>`
+            : (soonTot > 0 ? `<div class="banner-alert">⏰ ${soonTot} milestone${soonTot > 1 ? 's' : ''} due within ${DUE_SOON_DAYS} days</div>` : ''))}
     </div>
     <div class="section-label">All Phases</div>
     <div class="phase-grid">`;
@@ -992,6 +1040,9 @@ function renderActiveDetail(phase) {
   // Alert chips
   html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
 
+  // Deadline alerts (date-based; overdue + due-soon milestones)
+  html += renderDeadlinesStrip(phase);
+
   // Staff table (full mode only)
   if (phase.staff && phase.staff.length > 0) {
     html += `
@@ -1023,6 +1074,9 @@ function renderActiveDetail(phase) {
 
   // Milestones
   html += renderMilestonesPanel(phase);
+
+  // Milestone assignment rollup (Leadership only)
+  html += renderAssignmentRollup(phase);
 
   // Change log (Leadership only, active phases)
   html += renderPhaseChangelog(phase.id);
@@ -1076,8 +1130,8 @@ function renderMilestonesPanel(phase) {
   const completeCount = milestones.filter(m => m.status === 'complete').length;
 
   let rows = milestones.length > 0
-    ? milestones.map(m => renderMilestoneRow(m, phase.id)).join('')
-    : `<tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">
+    ? milestones.map(m => renderMilestoneRow(m, phase)).join('')
+    : `<tr><td colspan="8" style="text-align:center;color:#94A3B8;padding:24px">
         No milestones defined yet.${role === 'full' ? ' Click <strong>+ Add Item</strong> to create the first one.' : ''}
       </td></tr>`;
 
@@ -1099,7 +1153,7 @@ function renderMilestonesPanel(phase) {
       <table>
         <thead>
           <tr>
-            <th>Item</th><th>Type</th><th>Target Date</th><th>Status</th><th>Completion</th><th>Notes</th>
+            <th>Item</th><th>Type</th><th>Timeline</th><th>Owners</th><th>Status</th><th>Completion</th><th>Notes</th>
             <th class="full-only"></th>
           </tr>
         </thead>
@@ -1109,7 +1163,8 @@ function renderMilestonesPanel(phase) {
     </div>`;
 }
 
-function renderMilestoneRow(m, phaseId) {
+function renderMilestoneRow(m, phase) {
+  const phaseId = phase.id;
   const statusMap = {
     'complete': ['ms-complete','✓ Complete'],
     'in_progress': ['ms-inprogress','In Progress'],
@@ -1119,10 +1174,26 @@ function renderMilestoneRow(m, phaseId) {
   const [statusCls, statusLabel] = statusMap[m.status] || statusMap['not_started'];
   const noteStyle = m.notes && m.notes.toLowerCase().includes('behind') || m.notes?.toLowerCase().includes('blocked') ? 'color:#F59E0B;font-weight:600' : 'color:#94A3B8';
 
+  // Timeline cell: start → target, with a deadline pill when overdue/due-soon
+  const ds = milestoneDateStatus(m, phase);
+  const d = daysUntil(m.targetDate);
+  let duePill = '';
+  if (ds === 'overdue') duePill = `<span class="due-pill due-overdue">${daysLabel(d)}</span>`;
+  else if (ds === 'soon') duePill = `<span class="due-pill due-soon">${daysLabel(d)}</span>`;
+  const span = m.startDate ? `${fmtDateShort(m.startDate)} → ${fmtDate(m.targetDate)}` : fmtDate(m.targetDate);
+  const timelineCell = `<div>${span}${duePill}</div>`;
+
+  // Owners cell: overlapping avatars, or an unassigned hint
+  const owners = milestoneOwners(m, phase);
+  const ownersCell = owners.length
+    ? `<span class="ms-owners">${owners.map(o => `<span class="ms-avatar" title="${o.name} · ${o.role}">${initials(o.name)}</span>`).join('')}</span>`
+    : `<span class="ms-unassigned">—</span>`;
+
   return `<tr>
     <td><strong>${m.name}</strong></td>
     <td><span class="ms-type">${m.type === 'milestone' ? 'Milestone' : 'Deliverable'}</span></td>
-    <td>${fmtDate(m.targetDate)}</td>
+    <td>${timelineCell}</td>
+    <td>${ownersCell}</td>
     <td><span class="ms-status ${statusCls}">${statusLabel}</span></td>
     <td>
       <div class="ms-bar-wrap">
@@ -1133,6 +1204,76 @@ function renderMilestoneRow(m, phaseId) {
     <td style="${noteStyle}">${m.notes || '—'}</td>
     <td class="full-only"><button class="pm-edit-btn" onclick="openEditMilestone('${phaseId}','${m.id}')">Edit</button></td>
   </tr>`;
+}
+
+function renderDeadlinesStrip(phase) {
+  const items = (phase.milestones || [])
+    .map(m => ({ m, ds: milestoneDateStatus(m, phase), d: daysUntil(m.targetDate) }))
+    .filter(x => x.ds === 'overdue' || x.ds === 'soon')
+    .sort((a, b) => a.d - b.d);
+  if (!items.length) return '';
+  const rows = items.map(({ m, ds, d }) => {
+    const owners = milestoneOwners(m, phase);
+    const ownerStr = owners.length ? owners.map(o => o.name).join(', ') : 'Unassigned';
+    return `<div class="deadline-item ${ds}">
+      <span class="di-name">${m.name}</span>
+      <span class="di-meta">· ${fmtDate(m.targetDate)} · ${ownerStr}</span>
+      <span class="di-days ${ds}">${daysLabel(d)}</span>
+    </div>`;
+  }).join('');
+  return `
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Upcoming &amp; Overdue Deadlines <span class="text-muted text-sm">· next ${dueSoonDays(phase)} days + past due</span></span>
+      </div>
+      <div class="deadline-list">${rows}</div>
+    </div>`;
+}
+
+function renderAssignmentRollup(phase) {
+  const milestones = phase.milestones || [];
+  if (!milestones.length) return '';
+  const rows = [];
+  (phase.staff || []).forEach(s => {
+    const assigned = milestones.filter(m => (m.assigneeIds || []).includes(s.id));
+    if (!assigned.length) return;
+    const complete = assigned.filter(m => m.status === 'complete').length;
+    const overdue = assigned.filter(m => milestoneDateStatus(m, phase) === 'overdue').length;
+    rows.push(`<tr>
+      <td><strong>${s.name}</strong> <span class="text-muted" style="font-size:11px">· ${s.role}</span></td>
+      <td class="num">${assigned.length}</td>
+      <td class="num">${complete}</td>
+      <td class="num"><span class="assign-badge ${overdue ? 'overdue' : 'zero'}">${overdue}</span></td>
+      <td class="num">${fmt(s.hoursTotal)} / ${fmt(s.hoursAllocated)}</td>
+    </tr>`);
+  });
+  const unassigned = milestones.filter(m => !(m.assigneeIds || []).length);
+  if (unassigned.length) {
+    rows.push(`<tr>
+      <td><span class="ms-unassigned" style="font-size:12px">Unassigned</span></td>
+      <td class="num">${unassigned.length}</td>
+      <td class="num">—</td>
+      <td class="num">—</td>
+      <td class="num">—</td>
+    </tr>`);
+  }
+  if (!rows.length) return '';
+  return `
+    <div class="panel full-only">
+      <div class="panel-header">
+        <span class="panel-title">Milestone Assignments <span class="text-muted text-sm">· by owner</span></span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Owner</th>
+          <th style="text-align:center">Assigned</th>
+          <th style="text-align:center">Complete</th>
+          <th style="text-align:center">Overdue</th>
+          <th style="text-align:center">Hours (used / alloc)</th>
+        </tr></thead>
+        <tbody class="assign-tbody">${rows.join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 function buildNarrative(phase, bp, tp, dp, bd, pg) {
@@ -1241,7 +1382,7 @@ function openAddMilestone(phaseId) {
   editingMilestone = { phaseId, milestoneId: null };
   document.getElementById('modal-title').textContent = 'Add Milestone / Deliverable';
   document.getElementById('modal-delete-btn').style.display = 'none';
-  document.getElementById('modal-body').innerHTML = buildMilestoneForm(null);
+  document.getElementById('modal-body').innerHTML = buildMilestoneForm(null, D.phases.find(p => p.id === phaseId));
   document.getElementById('modal-overlay').classList.add('visible');
 }
 
@@ -1251,16 +1392,27 @@ function openEditMilestone(phaseId, milestoneId) {
   editingMilestone = { phaseId, milestoneId };
   document.getElementById('modal-title').textContent = 'Edit Milestone';
   document.getElementById('modal-delete-btn').style.display = '';
-  document.getElementById('modal-body').innerHTML = buildMilestoneForm(m);
+  document.getElementById('modal-body').innerHTML = buildMilestoneForm(m, phase);
   // Sync range display
   const range = document.getElementById('modal-pct');
   if (range) range.addEventListener('input', () => { document.getElementById('modal-pct-val').textContent = range.value + '%'; });
   document.getElementById('modal-overlay').classList.add('visible');
 }
 
-function buildMilestoneForm(m) {
+function buildMilestoneForm(m, phase) {
   const statuses = ['not_started','in_progress','complete','blocked'];
   const statusLabels = {'not_started':'Not Started','in_progress':'In Progress','complete':'Complete','blocked':'Blocked'};
+  const staff = (phase && phase.staff) || [];
+  const selected = new Set(m && Array.isArray(m.assigneeIds) ? m.assigneeIds : []);
+  const assigneePicker = staff.length
+    ? `<div class="assignee-pick">
+        ${staff.map(s => `<label class="assignee-chip ${selected.has(s.id) ? 'on' : ''}">
+          <input type="checkbox" class="assignee-cb" value="${s.id}" ${selected.has(s.id) ? 'checked' : ''}
+            onchange="this.closest('.assignee-chip').classList.toggle('on', this.checked)">
+          ${s.name}
+        </label>`).join('')}
+      </div>`
+    : `<div class="text-sm text-muted">No staff on this phase yet — add staff to assign owners.</div>`;
   return `
     <div class="form-row">
       <label class="form-label">Name</label>
@@ -1275,15 +1427,25 @@ function buildMilestoneForm(m) {
         </select>
       </div>
       <div class="form-row" style="flex:1">
+        <label class="form-label">Status</label>
+        <select class="form-select" id="modal-status">
+          ${statuses.map(s => `<option value="${s}" ${m?.status===s ? 'selected' : ''}>${statusLabels[s]}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row-split" style="display:flex;gap:12px">
+      <div class="form-row" style="flex:1">
+        <label class="form-label">Start Date</label>
+        <input class="form-input" id="modal-start" type="date" value="${m && m.startDate ? m.startDate : ''}">
+      </div>
+      <div class="form-row" style="flex:1">
         <label class="form-label">Target Date</label>
         <input class="form-input" id="modal-date" type="date" value="${m ? m.targetDate : ''}">
       </div>
     </div>
     <div class="form-row">
-      <label class="form-label">Status</label>
-      <select class="form-select" id="modal-status">
-        ${statuses.map(s => `<option value="${s}" ${m?.status===s ? 'selected' : ''}>${statusLabels[s]}</option>`).join('')}
-      </select>
+      <label class="form-label">Owners</label>
+      ${assigneePicker}
     </div>
     <div class="form-row">
       <label class="form-label">Completion %</label>
@@ -1305,16 +1467,20 @@ function saveMilestone() {
   if (!name) { document.getElementById('modal-name').focus(); return; }
 
   const now = new Date().toISOString();
+  const assigneeIds = Array.from(document.querySelectorAll('.assignee-cb:checked')).map(el => el.value);
+  const existing = milestoneId ? phase.milestones.find(m => m.id === milestoneId) : null;
   const newM = {
     id: milestoneId || ('m-' + Date.now()),
     name,
     type: document.getElementById('modal-type').value,
+    startDate: document.getElementById('modal-start').value,
     targetDate: document.getElementById('modal-date').value,
     status: document.getElementById('modal-status').value,
     completionPct: parseInt(document.getElementById('modal-pct').value),
     notes: document.getElementById('modal-notes').value.trim(),
+    assigneeIds,
     lastUpdated: now,
-    airtableRecordId: null
+    airtableRecordId: existing ? (existing.airtableRecordId || null) : null
   };
 
   if (milestoneId) {
@@ -1592,6 +1758,45 @@ function fmtDate(str) {
   if (!str) return 'TBD';
   const d = new Date(str + 'T12:00:00Z');
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+}
+function fmtDateShort(str) {
+  if (!str) return '';
+  const d = new Date(str + 'T12:00:00Z');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+}
+
+// ─── Phase 2: date-based deadlines + milestone assignments ───
+const DUE_SOON_DAYS = 7;
+function dueSoonDays(phase) { return (phase.alertThresholds && phase.alertThresholds.dueSoonDays) || DUE_SOON_DAYS; }
+function daysUntil(str) {
+  if (!str) return null;
+  const target = new Date(str + 'T12:00:00Z').getTime();
+  const now = new Date();
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  return Math.round((target - today) / 86400000);
+}
+// 'done' | 'overdue' | 'soon' | 'ok' | 'none'
+function milestoneDateStatus(m, phase) {
+  if (!m.targetDate) return 'none';
+  if (m.status === 'complete') return 'done';
+  const d = daysUntil(m.targetDate);
+  if (d < 0) return 'overdue';
+  if (d <= dueSoonDays(phase)) return 'soon';
+  return 'ok';
+}
+function daysLabel(d) {
+  if (d === null) return '';
+  if (d < 0) return Math.abs(d) + (Math.abs(d) === 1 ? ' day overdue' : ' days overdue');
+  if (d === 0) return 'due today';
+  return 'in ' + d + (d === 1 ? ' day' : ' days');
+}
+function initials(name) {
+  if (!name) return '?';
+  const parts = name.replace(/\./g, '').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
+}
+function milestoneOwners(m, phase) {
+  return (m.assigneeIds || []).map(id => (phase.staff || []).find(s => s.id === id)).filter(Boolean);
 }
 </script>
 </body>
