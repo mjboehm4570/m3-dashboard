@@ -334,6 +334,27 @@ tr:hover td{background:#FAFAFA}
 .kb-note{font-size:12px;color:#94A3B8;padding:16px 0}
 .kb-open{font-size:11px;color:#6366F1;text-decoration:none;white-space:nowrap}
 .kb-open:hover{text-decoration:underline}
+/* Phase 5 — in-app assistant */
+.chat-fab{position:fixed;right:24px;bottom:24px;z-index:60;background:#6366F1;color:#fff;border:none;border-radius:24px;padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,.35)}
+.chat-fab:hover{background:#4F46E5}
+.chat-panel{position:fixed;right:24px;bottom:80px;z-index:60;width:380px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 120px);background:#fff;border:1px solid #E2E8F0;border-radius:14px;box-shadow:0 12px 40px rgba(15,23,42,.22);display:none;flex-direction:column;overflow:hidden}
+.chat-panel.open{display:flex}
+.chat-head{padding:12px 16px;border-bottom:1px solid #F1F5F9;display:flex;align-items:center;justify-content:space-between}
+.chat-head-title{font-size:13px;font-weight:700;color:#1E293B}
+.chat-head-sub{font-size:11px;color:#94A3B8}
+.chat-close{background:none;border:none;font-size:18px;color:#94A3B8;cursor:pointer;line-height:1}
+.chat-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.chat-msg{font-size:13px;line-height:1.5;padding:8px 12px;border-radius:12px;max-width:85%;white-space:pre-wrap;word-wrap:break-word}
+.chat-msg.user{align-self:flex-end;background:#6366F1;color:#fff;border-bottom-right-radius:4px}
+.chat-msg.assistant{align-self:flex-start;background:#F1F5F9;color:#1E293B;border-bottom-left-radius:4px}
+.chat-msg.error{align-self:flex-start;background:#FEF2F2;color:#991B1B;border:1px solid #FECACA}
+.chat-empty{color:#94A3B8;font-size:12px;text-align:center;margin:auto;padding:0 20px;line-height:1.6}
+.chat-typing{align-self:flex-start;color:#94A3B8;font-size:12px;font-style:italic}
+.chat-input-row{border-top:1px solid #F1F5F9;padding:10px 12px;display:flex;gap:8px;align-items:flex-end}
+.chat-input{flex:1;border:1.5px solid #E2E8F0;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;resize:none;max-height:100px;outline:none}
+.chat-input:focus{border-color:#6366F1}
+.chat-send{background:#6366F1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.chat-send:disabled{background:#CBD5E1;cursor:default}
 
 /* ─── UPCOMING DETAIL STATE ─── */
 .upcoming-detail{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:48px 32px;text-align:center;margin-bottom:16px}
@@ -439,6 +460,24 @@ tr:hover td{background:#FAFAFA}
   <div id="page-timeline" class="page"></div>
   <div id="page-kb" class="page"></div>
   <div id="page-detail" class="page"></div>
+
+  <!-- IN-APP ASSISTANT (Leadership only) -->
+  <button class="chat-fab full-only" id="chat-fab" onclick="toggleChat()">💬 Ask</button>
+  <div class="chat-panel full-only" id="chat-panel">
+    <div class="chat-head">
+      <div>
+        <div class="chat-head-title">M3 Assistant</div>
+        <div class="chat-head-sub">Grounded in this dashboard's data</div>
+      </div>
+      <button class="chat-close" onclick="toggleChat()" aria-label="Close">×</button>
+    </div>
+    <div class="chat-body" id="chat-body"></div>
+    <div class="chat-input-row">
+      <textarea class="chat-input" id="chat-input" rows="1" placeholder="Ask about phases, hours, milestones…"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}"></textarea>
+      <button class="chat-send" id="chat-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
 </div>
 
 <!-- MILESTONE EDIT MODAL -->
@@ -463,6 +502,7 @@ const FULL_PW = 'm3-lead-2026';
 const DATA_URL = './data.json';
 const API_URL  = '/api/state';   // serverless Airtable proxy (falls back to localStorage if unavailable)
 const KB_URL   = '/api/kb';      // serverless read-only proxy for the private knowledge-base repo
+const CHAT_URL = '/api/chat';    // serverless Anthropic proxy for the in-app assistant
 
 // ═══════════════════════════════════════════
 // STATE
@@ -481,6 +521,8 @@ let overridesCache = {};      // in-memory PM overrides (server-backed, localSto
 let programGanttView = 'Month';  // Timeline tab view mode
 let phaseGanttView = 'Week';     // per-phase Gantt view mode
 let ganttMetric = 'completion';  // program bar fill: 'completion' | 'hours'
+let chatMessages = [];           // in-app assistant conversation [{role, content}]
+let chatBusy = false;
 
 // ═══════════════════════════════════════════
 // PM OVERRIDES  (server-backed via /api/state, localStorage as offline cache)
@@ -1005,6 +1047,104 @@ function renderKB() {
     else msg = 'Could not load the knowledge base (' + (err.message || 'error') + ').';
     page.innerHTML = head + `<div class="kb-note">${msg}</div>`;
   });
+}
+
+// ═══════════════════════════════════════════
+// IN-APP ASSISTANT (Leadership; /api/chat)
+// ═══════════════════════════════════════════
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  const open = panel.classList.toggle('open');
+  if (open) {
+    renderChatMessages();
+    setTimeout(() => document.getElementById('chat-input').focus(), 50);
+  }
+}
+
+// Compact summary of the current dashboard state — sent as grounding context.
+function buildChatContext() {
+  const lines = [];
+  lines.push(`Program: ${D.program.name} (client ${D.program.client}). Today: ${new Date().toISOString().slice(0, 10)}. Data as of ${fmtDate((D.lastUpdated || '').slice(0, 10))}.`);
+  D.phases.forEach(p => {
+    const bp = Math.round(burnPct(p)), dp = deliverablePct(p.milestones);
+    lines.push('');
+    lines.push(`PHASE ${p.number}: ${p.name}${p.subtitle ? ' — ' + p.subtitle : ''} [${p.state}${p.type ? '/' + p.type : ''}]`);
+    lines.push(`  Dates: ${fmtDate(p.startDate)} → ${p.expectedEndDate ? fmtDate(p.expectedEndDate) : 'TBD'} · Week ${p.elapsedWeeks || 0} of ${p.totalWeeks || '?'}`);
+    lines.push(`  Hours: ${fmt(p.usedHours || 0)} used of ${fmt(p.budgetHours || 0)} budget (${bp}% burned)${dp !== null ? ` · deliverables ${dp}% complete` : ''} · health: ${phaseHealthState(p)}`);
+    if ((p.milestones || []).length) {
+      lines.push('  Milestones:');
+      p.milestones.forEach(m => {
+        const owners = milestoneOwners(m, p).map(o => o.name).join(', ') || 'unassigned';
+        const ds = milestoneDateStatus(m, p);
+        const flag = ds === 'overdue' ? ' [OVERDUE]' : ds === 'soon' ? ' [DUE SOON]' : '';
+        lines.push(`    - ${m.name} (${m.type}) — ${m.status}, ${m.completionPct}% — due ${fmtDate(m.targetDate)}${flag} — owners: ${owners}${m.notes ? ' — note: ' + m.notes : ''}`);
+      });
+    }
+    if ((p.staff || []).length) {
+      lines.push('  Staff: ' + p.staff.map(s => `${s.name} (${s.role}, ${fmt(s.hoursTotal || 0)}/${fmt(s.hoursAllocated || 0)}h)`).join('; '));
+    }
+  });
+  return lines.join('\n');
+}
+
+function renderChatMessages() {
+  const body = document.getElementById('chat-body');
+  if (!chatMessages.length && !chatBusy) {
+    body.innerHTML = `<div class="chat-empty">Ask me anything about the M3 engagement — phase status, hours burned, overdue milestones, who's assigned to what.</div>`;
+    return;
+  }
+  let html = chatMessages.map(m => `<div class="chat-msg ${m.role === 'user' ? 'user' : (m.error ? 'error' : 'assistant')}">${escapeHtml(m.content)}</div>`).join('');
+  if (chatBusy) html += `<div class="chat-typing">M3 Assistant is thinking…</div>`;
+  body.innerHTML = html;
+  body.scrollTop = body.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+async function sendChat() {
+  if (chatBusy) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  chatMessages.push({ role: 'user', content: text });
+  chatBusy = true;
+  document.getElementById('chat-send').disabled = true;
+  renderChatMessages();
+  try {
+    const reply = await chatFetch(chatMessages, buildChatContext());
+    chatMessages.push({ role: 'assistant', content: reply });
+  } catch (e) {
+    let msg;
+    if (e.code === 503) msg = 'The assistant isn’t configured yet — set ANTHROPIC_API_KEY in Vercel to enable it.';
+    else if (e.code === 401) msg = 'Access passphrase required. Try sending again.';
+    else msg = 'Sorry — I couldn’t reach the assistant (' + (e.message || 'error') + ').';
+    chatMessages.push({ role: 'assistant', content: msg, error: true });
+  } finally {
+    chatBusy = false;
+    document.getElementById('chat-send').disabled = false;
+    renderChatMessages();
+  }
+}
+
+async function chatFetch(messages, context) {
+  const send = secret => fetch(CHAT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-edit-secret': secret || '' },
+    body: JSON.stringify({ messages: messages.map(m => ({ role: m.role, content: m.content })), context }),
+  });
+  let r = await send(localStorage.getItem(LS_SECRET));
+  if (r.status === 401) {
+    const secret = prompt('Enter the access passphrase to use the assistant:');
+    if (!secret) { const e = new Error('secret required'); e.code = 401; throw e; }
+    localStorage.setItem(LS_SECRET, secret);
+    r = await send(secret);
+  }
+  if (!r.ok) { const e = new Error('http ' + r.status); e.code = r.status; throw e; }
+  const j = await r.json();
+  return j.reply || '(no response)';
 }
 
 // ═══════════════════════════════════════════
