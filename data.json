@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-13T13:11:09.641Z",
+  "lastUpdated": "2026-07-14T12:04:16.369Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -20,7 +20,7 @@
       "startDate": "2026-06-09",
       "expectedEndDate": "2026-09-05",
       "totalWeeks": 14,
-      "elapsedWeeks": 4,
+      "elapsedWeeks": 5,
       "budgetHours": 1765,
       "usedHours": 185,
       "concurrentWith": null,
@@ -257,6 +257,22 @@
           "subphaseWeekHours": {
             "1a": 0,
             "1b": 10
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 0
           }
         },
         {
