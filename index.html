@@ -589,7 +589,8 @@ let role = null;
 let currentPage = 'overview';
 let selectedPhaseId = null;
 let subphase = 'all';         // active track lens in phase detail: 'all' | subphase id ('1a'/'1b')
-let detailTab = 'health';     // active section tab in phase detail: 'health'|'timeline'|'team'|'log'
+let detailTab = 'timeline';  // active section tab in phase detail: 'health'|'timeline'|'team'|'log'
+let timelineSubView = 'gantt'; // Timeline & Milestones sub-view: 'gantt'|'list'
 let editingMilestone = null;  // { phaseId, milestoneId }
 let editingStaff = null;      // { phaseId, staffId }
 let editingPhase = null;      // { phaseId }
@@ -779,6 +780,7 @@ function showPage(id, tabEl) {
 function goToPhase(phaseId) {
   selectedPhaseId = phaseId;
   subphase = 'all';
+  detailTab = 'timeline';
   renderDetail(phaseId);
   const tab = document.getElementById('tab-detail');
   tab.style.display = '';
@@ -1604,8 +1606,11 @@ function renderActiveDetail(phase) {
     html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
     html += renderDeadlinesStrip(phase);
   } else if (tab === 'timeline') {
-    html += renderPhaseGanttPanel(phase);
-    html += renderMilestonesPanel(phase);
+    html += renderTimelineSummary(phase, dp);
+    html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
+    html += renderDeadlinesStrip(phase);
+    html += renderTimelineSubToggle();
+    html += timelineSubView === 'list' ? renderMilestonesPanel(phase) : renderPhaseGanttPanel(phase);
   } else if (tab === 'team') {
     if (phase.staff && phase.staff.length > 0) {
       const staffLabel = spData ? `${spData.label} — ${spData.name}` : `Phase ${phase.number} Combined`;
@@ -1686,10 +1691,37 @@ function renderStaffRow(s, phase) {
   </tr>`;
 }
 
+// Overall deliverable progress — hoisted above the Timeline/List sub-toggle so it
+// persists regardless of which sub-view is active (previously lived only inside the table panel).
+function renderTimelineSummary(phase, dp) {
+  const milestones = milestonesForView(phase);
+  if (!milestones.length) return '';
+  const completeCount = milestones.filter(m => m.status === 'complete').length;
+  return `
+    <div class="panel" style="padding:14px 20px">
+      <div class="phase-completion-summary" style="margin-bottom:0">
+        <span class="pcs-label">Overall Progress</span>
+        <div class="pcs-bar-wrap"><div class="pcs-bar-fill" style="width:${dp||0}%"></div></div>
+        <span class="pcs-pct">${dp !== null ? dp+'%' : '—'}</span>
+        <span class="pcs-count">${completeCount} of ${milestones.length} items complete</span>
+      </div>
+    </div>`;
+}
+
+// Timeline (Gantt) / List (table) toggle for the Timeline & Milestones tab.
+function renderTimelineSubToggle() {
+  return `<div class="gseg" style="margin-bottom:14px">
+    <button class="${timelineSubView !== 'list' ? 'on' : ''}" onclick="setTimelineSubView('gantt')">Timeline</button>
+    <button class="${timelineSubView === 'list' ? 'on' : ''}" onclick="setTimelineSubView('list')">List</button>
+  </div>`;
+}
+function setTimelineSubView(v) {
+  timelineSubView = v;
+  renderDetail(selectedPhaseId);
+}
+
 function renderMilestonesPanel(phase) {
   const milestones = milestonesForView(phase);
-  const dp = deliverablePct(milestones);
-  const completeCount = milestones.filter(m => m.status === 'complete').length;
   const scoped = isSplitPhase(phase) && subphase !== 'all';
 
   let rows = milestones.length > 0
@@ -1704,15 +1736,6 @@ function renderMilestonesPanel(phase) {
         <span class="panel-title">Milestones & Deliverables <span class="text-muted text-sm">· PM-maintained</span></span>
         <button class="panel-toggle full-only" onclick="openAddMilestone('${phase.id}')">+ Add Item</button>
       </div>
-      ${milestones.length > 0 ? `
-      <div style="padding:12px 20px 4px">
-        <div class="phase-completion-summary">
-          <span class="pcs-label">Phase Completion</span>
-          <div class="pcs-bar-wrap"><div class="pcs-bar-fill" style="width:${dp||0}%"></div></div>
-          <span class="pcs-pct">${dp !== null ? dp+'%' : '—'}</span>
-          <span class="pcs-count">${completeCount} of ${milestones.length} items complete</span>
-        </div>
-      </div>` : ''}
       <table>
         <thead>
           <tr>
@@ -1790,11 +1813,12 @@ function renderPhaseGanttPanel(phase) {
             ${seg('Week', phaseGanttView, 'setPhaseView', 'Week')}
             ${seg('Month', phaseGanttView, 'setPhaseView', 'Month')}
           </div>
+          <button class="panel-toggle full-only" onclick="openAddMilestone('${phase.id}')">+ Add Milestone</button>
         </div>
       </div>
       ${dated.length
         ? `<div class="timeline-wrap"><div id="phase-gantt" class="gantt-target"></div></div>`
-        : `<div class="gantt-empty">No milestones have a target date yet. Add dates in the table below to see them on the timeline.</div>`}
+        : `<div class="gantt-empty">No milestones have a target date yet.${role === 'full' ? ' Click <strong>+ Add Milestone</strong> above, or switch to List view to add dates.' : ' Switch to List view to see them once dates are added.'}</div>`}
     </div>`;
 }
 
