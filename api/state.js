@@ -116,6 +116,7 @@ async function buildOverrides() {
       completionPct: typeof f.completionPct === 'number' ? f.completionPct : 0,
       notes: f.notes || '',
       assigneeIds: parseList(f.assigneeIds),
+      subphaseId: f.subphaseId || 'shared',
       lastUpdated: f.lastUpdated || '',
       airtableRecordId: rec.id,
     });
@@ -173,6 +174,7 @@ function milestoneFields(phaseId, m) {
     completionPct: Number(m.completionPct) || 0,
     notes: m.notes || '',
     assigneeIds: JSON.stringify(m.assigneeIds || []),
+    subphaseId: m.subphaseId || 'shared',
     lastUpdated: m.lastUpdated || new Date().toISOString(),
   };
 }
@@ -183,8 +185,21 @@ async function applyOp(body) {
   // Replace a phase's full milestone set: upsert every row, delete any that vanished.
   // (Mirrors the client's "write the whole array" semantics — avoids losing seed rows.)
   if (op === 'savePhaseMilestones') {
-    const { phaseId, milestones = [] } = body;
-    await airUpsert(T.milestones, ['phaseId', 'milestoneId'], milestones.map(m => ({ fields: milestoneFields(phaseId, m) })));
+    const { phaseId } = body;
+    const milestones = body.milestones || [];
+    const records = milestones.map(m => ({ fields: milestoneFields(phaseId, m) }));
+    try {
+      await airUpsert(T.milestones, ['phaseId', 'milestoneId'], records);
+    } catch (e) {
+      // Tolerate an Airtable base that doesn't have the newer subphaseId column yet:
+      // strip it and retry so milestone saves never hard-fail on a missing field.
+      if (/Unknown field name|UNKNOWN_FIELD_NAME|422/.test(e.message) && records.some(r => 'subphaseId' in r.fields)) {
+        records.forEach(r => { delete r.fields.subphaseId; });
+        await airUpsert(T.milestones, ['phaseId', 'milestoneId'], records);
+      } else {
+        throw e;
+      }
+    }
     const existing = await airList(T.milestones);
     const keep = new Set(milestones.map(m => m.id));
     const stale = existing.filter(r => r.fields.phaseId === phaseId && !keep.has(r.fields.milestoneId)).map(r => r.id);

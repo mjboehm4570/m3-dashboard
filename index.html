@@ -334,6 +334,12 @@ tr:hover td{background:#FAFAFA}
 .kb-note{font-size:12px;color:#94A3B8;padding:16px 0}
 .kb-open{font-size:11px;color:#6366F1;text-decoration:none;white-space:nowrap}
 .kb-open:hover{text-decoration:underline}
+/* Phase 6 — milestone track badges + detail section tabs */
+.ms-track{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;vertical-align:middle}
+.track-a{background:#EEF2FF;color:#4338CA}
+.track-b{background:#FEF3C7;color:#B45309}
+.track-shared{background:#F1F5F9;color:#64748B}
+.detail-tabs{margin:0 0 16px;flex-wrap:wrap}
 /* Phase 5 — in-app assistant */
 .chat-fab{position:fixed;right:24px;bottom:24px;z-index:60;background:#6366F1;color:#fff;border:none;border-radius:24px;padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(99,102,241,.35)}
 .chat-fab:hover{background:#4F46E5}
@@ -511,7 +517,8 @@ let D = null;           // loaded data
 let role = null;
 let currentPage = 'overview';
 let selectedPhaseId = null;
-let subphase = 'all';
+let subphase = 'all';         // active track lens in phase detail: 'all' | subphase id ('1a'/'1b')
+let detailTab = 'health';     // active section tab in phase detail: 'health'|'timeline'|'team'|'log'
 let editingMilestone = null;  // { phaseId, milestoneId }
 let editingStaff = null;      // { phaseId, staffId }
 let editingPhase = null;      // { phaseId }
@@ -595,10 +602,11 @@ function applyOverrides(data) {
       if (cfg.expectedEndDate !== undefined) phase.expectedEndDate = cfg.expectedEndDate || null;
       if (cfg.totalWeeks   !== undefined) phase.totalWeeks       = cfg.totalWeeks;
     }
-    // Phase 2 migration: ensure every milestone has the new fields
+    // Phase 2/6 migration: ensure every milestone has the new fields
     (phase.milestones || []).forEach(m => {
       if (m.startDate === undefined || m.startDate === null) m.startDate = '';
       if (!Array.isArray(m.assigneeIds)) m.assigneeIds = [];
+      if (!m.subphaseId) m.subphaseId = 'shared';   // Phase 6: track tag (default shared)
     });
   });
   return data;
@@ -726,6 +734,22 @@ function timePct(phase) {
 function deliverablePct(milestones) {
   if (!milestones || milestones.length === 0) return null;
   return Math.round(milestones.reduce((s, m) => s + m.completionPct, 0) / milestones.length);
+}
+// Phase 6: is this a split phase (has subphase tracks)?
+function isSplitPhase(phase) { return !!(phase.subphases && phase.subphases.length > 0); }
+// Milestones scoped to the active track lens. Shared items appear in every track view.
+function milestonesForView(phase) {
+  const all = phase.milestones || [];
+  if (subphase === 'all' || !isSplitPhase(phase)) return all;
+  return all.filter(m => (m.subphaseId || 'shared') === subphase || (m.subphaseId || 'shared') === 'shared');
+}
+// Track badge label + css class for a milestone's subphaseId.
+function trackBadge(phase, subId) {
+  const id = subId || 'shared';
+  if (id === 'shared') return { label: 'Shared', cls: 'track-shared' };
+  const sp = (phase.subphases || []).find(s => s.id === id);
+  const idx = (phase.subphases || []).findIndex(s => s.id === id);
+  return { label: sp ? sp.label : id, cls: idx === 0 ? 'track-a' : 'track-b' };
 }
 function weeklyBurnRate(phase) {
   if (!phase.elapsedWeeks || phase.elapsedWeeks === 0) return 0;
@@ -1271,9 +1295,11 @@ function renderRetainerDetail(phase) {
 }
 
 function renderActiveDetail(phase) {
+  const split = isSplitPhase(phase);
+  const spData = (split && subphase !== 'all') ? phase.subphases.find(s => s.id === subphase) : null;
   const bp = burnPct(phase);
   const tp = timePct(phase);
-  const dp = deliverablePct(phase.milestones);
+  const dp = deliverablePct(milestonesForView(phase));   // scoped to the active track
   const bd = bp - tp;
   const pg = dp !== null ? bp - dp : 0;
   const wr = weeksRemaining(phase);
@@ -1311,9 +1337,9 @@ function renderActiveDetail(phase) {
           <div class="dm-sub">${phase.subphases?.length > 0 ? 'Combined Phase ' + phase.number + ' allocation' : 'Phase allocation'}</div>
         </div>
         <div class="detail-metric-box">
-          <div class="dm-label">Hours Used</div>
-          <div class="dm-value" id="dm-used">${fmt(phase.usedHours)}</div>
-          <div class="dm-sub ${bp >= 80 ? 'warning' : ''}" id="dm-used-sub">${pct(bp)} burned</div>
+          <div class="dm-label">Hours Used${spData ? ' · ' + spData.label : ''}</div>
+          <div class="dm-value">${fmt(spData ? spData.usedHours : phase.usedHours)}</div>
+          <div class="dm-sub ${!spData && bp >= 80 ? 'warning' : ''}">${spData ? 'of ' + fmt(phase.usedHours) + ' combined' : pct(bp) + ' burned'}</div>
         </div>
         <div class="detail-metric-box">
           <div class="dm-label">Hours Remaining</div>
@@ -1333,10 +1359,10 @@ function renderActiveDetail(phase) {
     const total = phase.usedHours;
     html += `
       <div class="subphase-selector full-only">
-        <span class="subphase-label">Sub-phase:</span>
+        <span class="subphase-label">Track:</span>
         <div class="subphase-tabs">
-          <button class="subtab active" onclick="setSubphase('all',this,'${phase.id}')">Combined</button>
-          ${phase.subphases.map(s => `<button class="subtab" onclick="setSubphase('${s.id}',this,'${phase.id}')">${s.label} — ${s.name}</button>`).join('')}
+          <button class="subtab ${subphase==='all'?'active':''}" onclick="setSubphase('all',this,'${phase.id}')">Combined</button>
+          ${phase.subphases.map(s => `<button class="subtab ${subphase===s.id?'active':''}" onclick="setSubphase('${s.id}',this,'${phase.id}')">${s.label} — ${s.name}</button>`).join('')}
         </div>
         <div class="subphase-split">
           ${phase.subphases.map((s,i) => `
@@ -1346,7 +1372,7 @@ function renderActiveDetail(phase) {
             </span>${i < phase.subphases.length-1 ? '<span style="color:#CBD5E1">·</span>' : ''}`).join('')}
         </div>
       </div>
-      <div class="subphase-note-bar" id="subphase-note-bar"></div>`;
+      ${spData ? `<div class="subphase-note-bar" style="display:flex">📌 Showing <strong>&nbsp;${spData.label} — ${spData.name}&nbsp;</strong> — staff, milestones, timeline &amp; completion scoped to this track</div>` : ''}`;
 
     // Static summary for team mode
     html += `
@@ -1366,78 +1392,84 @@ function renderActiveDetail(phase) {
       </div>`;
   }
 
-  // Gauge
-  const narrativeClass = health === 'on-track' ? 'gauge-narrative-ok' : 'gauge-narrative';
-  const narrative = buildNarrative(phase, bp, tp, dp, bd, pg);
+  // ── Section tabs (declutter: one group of panels at a time) ──
   html += `
-    <div class="gauge-panel">
-      <div class="gauge-panel-title">Phase Health — Burn · Time · Progress</div>
-      <div class="gauge-row">
-        <span class="gauge-label">Hours Burned</span>
-        <div class="gauge-track"><div class="gauge-fill fill-burn" style="width:${Math.min(bp,100)}%"></div></div>
-        <span class="gauge-pct pct-burn">${pct(bp)}</span>
-        <span class="gauge-desc text-muted">${fmt(phase.usedHours)} of ${fmt(phase.budgetHours)} hrs</span>
-      </div>
-      <div class="gauge-row">
-        <span class="gauge-label">Time Elapsed</span>
-        <div class="gauge-track"><div class="gauge-fill fill-time" style="width:${Math.min(tp,100)}%"></div></div>
-        <span class="gauge-pct pct-time">${pct(tp)}</span>
-        <span class="gauge-desc text-muted">Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</span>
-      </div>
-      <div class="gauge-row">
-        <span class="gauge-label">Deliverable Completion</span>
-        <div class="gauge-track"><div class="gauge-fill fill-progress" style="width:${dp !== null ? Math.min(dp,100) : 0}%"></div></div>
-        <span class="gauge-pct pct-progress">${dp !== null ? pct(dp) : '—'}</span>
-        <span class="gauge-desc text-muted">PM-maintained</span>
-      </div>
-      <hr class="gauge-divider">
-      <div class="${narrativeClass}">${narrative}</div>
+    <div class="subphase-tabs detail-tabs">
+      <button class="subtab ${detailTab==='health'?'active':''}" onclick="setDetailTab('health')">Health</button>
+      <button class="subtab ${detailTab==='timeline'?'active':''}" onclick="setDetailTab('timeline')">Timeline &amp; Milestones</button>
+      <button class="subtab full-only ${detailTab==='team'?'active':''}" onclick="setDetailTab('team')">Team</button>
+      <button class="subtab full-only ${detailTab==='log'?'active':''}" onclick="setDetailTab('log')">Change Log</button>
     </div>`;
 
-  // Alert chips
-  html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
+  // Team/Log are leadership-only; keep team-role users on a valid tab
+  let tab = detailTab;
+  if ((tab === 'team' || tab === 'log') && role !== 'full') tab = 'health';
 
-  // Deadline alerts (date-based; overdue + due-soon milestones)
-  html += renderDeadlinesStrip(phase);
-
-  // Staff table (full mode only)
-  if (phase.staff && phase.staff.length > 0) {
+  if (tab === 'health') {
+    const narrativeClass = health === 'on-track' ? 'gauge-narrative-ok' : 'gauge-narrative';
+    const narrative = buildNarrative(phase, bp, tp, dp, bd, pg);
     html += `
-      <div class="panel full-only">
-        <div class="panel-header">
-          <span class="panel-title">Staff Hours <span class="text-muted text-sm">· <span id="staff-panel-label">Phase ${phase.number} Combined</span></span></span>
-          <span class="text-sm text-muted">Showing: This Phase</span>
+      <div class="gauge-panel">
+        <div class="gauge-panel-title">Phase Health — Burn · Time · Progress${spData ? ' · ' + spData.label : ''}</div>
+        <div class="gauge-row">
+          <span class="gauge-label">Hours Burned</span>
+          <div class="gauge-track"><div class="gauge-fill fill-burn" style="width:${Math.min(bp,100)}%"></div></div>
+          <span class="gauge-pct pct-burn">${pct(bp)}</span>
+          <span class="gauge-desc text-muted">${fmt(phase.usedHours)} of ${fmt(phase.budgetHours)} hrs</span>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Staff Member</th>
-              <th>Role</th>
-              ${phase.subphases?.length > 0 ? '<th>Sub-phase Split</th>' : ''}
-              <th>This Week</th>
-              <th>Total (Phase)</th>
-              <th>Allocated</th>
-              <th>Remaining</th>
-              <th>Utilization</th>
-              <th class="full-only"></th>
-            </tr>
-          </thead>
-          <tbody id="staff-tbody">
-            ${phase.staff.map(s => renderStaffRow(s, phase)).join('')}
-          </tbody>
-        </table>
+        <div class="gauge-row">
+          <span class="gauge-label">Time Elapsed</span>
+          <div class="gauge-track"><div class="gauge-fill fill-time" style="width:${Math.min(tp,100)}%"></div></div>
+          <span class="gauge-pct pct-time">${pct(tp)}</span>
+          <span class="gauge-desc text-muted">Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</span>
+        </div>
+        <div class="gauge-row">
+          <span class="gauge-label">Deliverable Completion</span>
+          <div class="gauge-track"><div class="gauge-fill fill-progress" style="width:${dp !== null ? Math.min(dp,100) : 0}%"></div></div>
+          <span class="gauge-pct pct-progress">${dp !== null ? pct(dp) : '—'}</span>
+          <span class="gauge-desc text-muted">${spData ? spData.label + ' track' : 'PM-maintained'}</span>
+        </div>
+        <hr class="gauge-divider">
+        <div class="${narrativeClass}">${narrative}</div>
       </div>`;
+    html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
+    html += renderDeadlinesStrip(phase);
+  } else if (tab === 'timeline') {
+    html += renderPhaseGanttPanel(phase);
+    html += renderMilestonesPanel(phase);
+  } else if (tab === 'team') {
+    if (phase.staff && phase.staff.length > 0) {
+      const staffLabel = spData ? `${spData.label} — ${spData.name}` : `Phase ${phase.number} Combined`;
+      html += `
+        <div class="panel full-only">
+          <div class="panel-header">
+            <span class="panel-title">Staff Hours <span class="text-muted text-sm">· ${staffLabel}</span></span>
+            <span class="text-sm text-muted">Showing: This Phase</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Staff Member</th>
+                <th>Role</th>
+                ${phase.subphases?.length > 0 ? '<th>Sub-phase Split</th>' : ''}
+                <th>This Week</th>
+                <th>Total (Phase)</th>
+                <th>Allocated</th>
+                <th>Remaining</th>
+                <th>Utilization</th>
+                <th class="full-only"></th>
+              </tr>
+            </thead>
+            <tbody id="staff-tbody">
+              ${phase.staff.map(s => renderStaffRow(s, phase)).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+    html += renderAssignmentRollup(phase);
+  } else if (tab === 'log') {
+    html += renderPhaseChangelog(phase.id);
   }
-
-  // Milestone timeline (Gantt) + table
-  html += renderPhaseGanttPanel(phase);
-  html += renderMilestonesPanel(phase);
-
-  // Milestone assignment rollup (Leadership only)
-  html += renderAssignmentRollup(phase);
-
-  // Change log (Leadership only, active phases)
-  html += renderPhaseChangelog(phase.id);
 
   return html;
 }
@@ -1447,6 +1479,11 @@ function renderStaffRow(s, phase) {
   const allocCls = usedPct >= 95 ? 'alloc-risk' : usedPct >= 80 ? 'alloc-warn' : 'alloc-ok';
   const pctColor = usedPct >= 95 ? '#EF4444' : usedPct >= 80 ? '#F59E0B' : '#10B981';
   const hasSubphase = phase.subphases?.length > 0 && s.subphaseHours;
+
+  // Hours shown scope to the active track lens (allocation/utilization stay phase-level)
+  const scoped = hasSubphase && subphase !== 'all';
+  const weekHrs = scoped ? (s.subphaseWeekHours?.[subphase] || 0) : s.hoursThisWeek;
+  const totalHrs = scoped ? (s.subphaseHours?.[subphase] || 0) : s.hoursTotal;
 
   let subphaseCell = '';
   if (hasSubphase) {
@@ -1462,14 +1499,12 @@ function renderStaffRow(s, phase) {
     </td>`;
   }
 
-  return `<tr data-staff-id="${s.id}"
-    ${hasSubphase ? `data-total1a="${s.subphaseHours[phase.subphases[0].id]||0}" data-total1b="${s.subphaseHours[phase.subphases[1]?.id]||0}"` : ''}
-    ${hasSubphase ? `data-week1a="${s.subphaseWeekHours?.[phase.subphases[0].id]||0}" data-week1b="${s.subphaseWeekHours?.[phase.subphases[1]?.id]||0}"` : ''}>
+  return `<tr data-staff-id="${s.id}">
     <td><strong>${s.name}</strong></td>
     <td><span class="role-tag">${s.role}</span></td>
     ${subphaseCell}
-    <td class="col-week">${s.hoursThisWeek} hrs</td>
-    <td class="col-total">${fmt(s.hoursTotal)} hrs</td>
+    <td class="col-week">${fmt(weekHrs)} hrs</td>
+    <td class="col-total">${fmt(totalHrs)} hrs</td>
     <td>${fmt(s.hoursAllocated)} hrs</td>
     <td>${fmt(s.hoursAllocated - s.hoursTotal)} hrs</td>
     <td>
@@ -1483,14 +1518,15 @@ function renderStaffRow(s, phase) {
 }
 
 function renderMilestonesPanel(phase) {
-  const milestones = phase.milestones || [];
+  const milestones = milestonesForView(phase);
   const dp = deliverablePct(milestones);
   const completeCount = milestones.filter(m => m.status === 'complete').length;
+  const scoped = isSplitPhase(phase) && subphase !== 'all';
 
   let rows = milestones.length > 0
     ? milestones.map(m => renderMilestoneRow(m, phase)).join('')
     : `<tr><td colspan="8" style="text-align:center;color:#94A3B8;padding:24px">
-        No milestones defined yet.${role === 'full' ? ' Click <strong>+ Add Item</strong> to create the first one.' : ''}
+        No ${scoped ? 'milestones for this track' : 'milestones defined'} yet.${role === 'full' ? ' Click <strong>+ Add Item</strong> to create one.' : ''}
       </td></tr>`;
 
   return `
@@ -1547,8 +1583,15 @@ function renderMilestoneRow(m, phase) {
     ? `<span class="ms-owners">${owners.map(o => `<span class="ms-avatar" title="${o.name} · ${o.role}">${initials(o.name)}</span>`).join('')}</span>`
     : `<span class="ms-unassigned">—</span>`;
 
+  // Track badge — only meaningful in the Combined view of a split phase
+  let trackTag = '';
+  if (isSplitPhase(phase) && subphase === 'all') {
+    const t = trackBadge(phase, m.subphaseId);
+    trackTag = ` <span class="ms-track ${t.cls}">${t.label}</span>`;
+  }
+
   return `<tr>
-    <td><strong>${m.name}</strong></td>
+    <td><strong>${m.name}</strong>${trackTag}</td>
     <td><span class="ms-type">${m.type === 'milestone' ? 'Milestone' : 'Deliverable'}</span></td>
     <td>${timelineCell}</td>
     <td>${ownersCell}</td>
@@ -1565,7 +1608,7 @@ function renderMilestoneRow(m, phase) {
 }
 
 function renderPhaseGanttPanel(phase) {
-  const dated = (phase.milestones || []).filter(m => m.targetDate);
+  const dated = milestonesForView(phase).filter(m => m.targetDate);
   const seg = (val, cur, fn, label) => `<button class="${val === cur ? 'on' : ''}" onclick="${fn}('${val}')">${label}</button>`;
   return `
     <div class="panel">
@@ -1589,7 +1632,7 @@ function renderPhaseGanttPanel(phase) {
 function initPhaseGantt(phase) {
   const el = document.getElementById('phase-gantt');
   if (!el || typeof Gantt === 'undefined') return;
-  const dated = (phase.milestones || []).filter(m => m.targetDate);
+  const dated = milestonesForView(phase).filter(m => m.targetDate);
   if (!dated.length) return;
   const tasks = dated.map(m => {
     const ds = milestoneDateStatus(m, phase);
@@ -1635,7 +1678,7 @@ function saveMilestoneDatesFromGantt(phaseId, mId, start, end) {
 }
 
 function renderDeadlinesStrip(phase) {
-  const items = (phase.milestones || [])
+  const items = milestonesForView(phase)
     .map(m => ({ m, ds: milestoneDateStatus(m, phase), d: daysUntil(m.targetDate) }))
     .filter(x => x.ds === 'overdue' || x.ds === 'soon')
     .sort((a, b) => a.d - b.d);
@@ -1659,7 +1702,7 @@ function renderDeadlinesStrip(phase) {
 }
 
 function renderAssignmentRollup(phase) {
-  const milestones = phase.milestones || [];
+  const milestones = milestonesForView(phase);
   if (!milestones.length) return '';
   const rows = [];
   (phase.staff || []).forEach(s => {
@@ -1764,43 +1807,17 @@ function renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr) {
 // ═══════════════════════════════════════════
 // SUB-PHASE TOGGLE
 // ═══════════════════════════════════════════
+// Track lens: set the active subphase and re-render the whole detail so staff,
+// milestones, timeline, deadlines, assignments and completion all scope to it.
 function setSubphase(sp, btn, phaseId) {
   subphase = sp;
-  document.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+  renderDetail(phaseId || selectedPhaseId);
+}
 
-  const phase = D.phases.find(p => p.id === phaseId);
-  const noteBar = document.getElementById('subphase-note-bar');
-  const staffLabel = document.getElementById('staff-panel-label');
-  const dmUsed = document.getElementById('dm-used');
-  const dmUsedSub = document.getElementById('dm-used-sub');
-  const rows = document.querySelectorAll('#staff-tbody tr');
-
-  if (sp === 'all') {
-    noteBar.style.display = 'none';
-    if (staffLabel) staffLabel.textContent = 'Phase ' + phase.number + ' Combined';
-    if (dmUsed) { dmUsed.textContent = fmt(phase.usedHours); dmUsedSub.textContent = pct(burnPct(phase)) + ' burned'; }
-    rows.forEach(row => {
-      const t1a = parseInt(row.dataset.total1a || 0);
-      const t1b = parseInt(row.dataset.total1b || 0);
-      const w1a = parseInt(row.dataset.week1a || 0);
-      const w1b = parseInt(row.dataset.week1b || 0);
-      if (row.querySelector('.col-total')) row.querySelector('.col-total').textContent = fmt(t1a + t1b) + ' hrs';
-      if (row.querySelector('.col-week')) row.querySelector('.col-week').textContent = (w1a + w1b) + ' hrs';
-    });
-  } else {
-    const spData = phase.subphases.find(s => s.id === sp);
-    noteBar.style.display = 'flex';
-    noteBar.innerHTML = `📌 Showing <strong>${spData.label} — ${spData.name}</strong> hours only (${fmt(spData.usedHours)} hrs of ${fmt(phase.usedHours)} combined)`;
-    if (staffLabel) staffLabel.textContent = spData.label + ' — ' + spData.name;
-    if (dmUsed) { dmUsed.textContent = fmt(spData.usedHours); dmUsedSub.textContent = 'of ' + fmt(phase.usedHours) + ' combined hrs'; }
-    rows.forEach(row => {
-      const val = sp === '1a' ? parseInt(row.dataset.total1a || 0) : parseInt(row.dataset.total1b || 0);
-      const wval = sp === '1a' ? parseInt(row.dataset.week1a || 0) : parseInt(row.dataset.week1b || 0);
-      if (row.querySelector('.col-total')) row.querySelector('.col-total').textContent = val + ' hrs';
-      if (row.querySelector('.col-week')) row.querySelector('.col-week').textContent = wval + ' hrs';
-    });
-  }
+// Section tab: switch which group of panels is shown in the phase detail.
+function setDetailTab(t) {
+  detailTab = t;
+  renderDetail(selectedPhaseId);
 }
 
 // ═══════════════════════════════════════════
@@ -1841,6 +1858,17 @@ function buildMilestoneForm(m, phase) {
         </label>`).join('')}
       </div>`
     : `<div class="text-sm text-muted">No staff on this phase yet — add staff to assign owners.</div>`;
+  // Track picker (split phases only)
+  const curTrack = (m && m.subphaseId) || 'shared';
+  const trackRow = isSplitPhase(phase)
+    ? `<div class="form-row">
+        <label class="form-label">Track</label>
+        <select class="form-select" id="modal-track">
+          <option value="shared" ${curTrack === 'shared' ? 'selected' : ''}>Shared (both tracks)</option>
+          ${phase.subphases.map(s => `<option value="${s.id}" ${curTrack === s.id ? 'selected' : ''}>${s.label} — ${s.name}</option>`).join('')}
+        </select>
+      </div>`
+    : '';
   return `
     <div class="form-row">
       <label class="form-label">Name</label>
@@ -1871,6 +1899,7 @@ function buildMilestoneForm(m, phase) {
         <input class="form-input" id="modal-date" type="date" value="${m ? m.targetDate : ''}">
       </div>
     </div>
+    ${trackRow}
     <div class="form-row">
       <label class="form-label">Owners</label>
       ${assigneePicker}
@@ -1896,6 +1925,7 @@ function saveMilestone() {
 
   const now = new Date().toISOString();
   const assigneeIds = Array.from(document.querySelectorAll('.assignee-cb:checked')).map(el => el.value);
+  const trackEl = document.getElementById('modal-track');
   const existing = milestoneId ? phase.milestones.find(m => m.id === milestoneId) : null;
   const newM = {
     id: milestoneId || ('m-' + Date.now()),
@@ -1907,6 +1937,7 @@ function saveMilestone() {
     completionPct: parseInt(document.getElementById('modal-pct').value),
     notes: document.getElementById('modal-notes').value.trim(),
     assigneeIds,
+    subphaseId: trackEl ? trackEl.value : ((existing && existing.subphaseId) || 'shared'),
     lastUpdated: now,
     airtableRecordId: existing ? (existing.airtableRecordId || null) : null
   };

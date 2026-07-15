@@ -56,6 +56,7 @@ async function upsert(table, fieldsToMergeOn, records) {
       completionPct: Number(m.completionPct) || 0,
       notes: m.notes || '',
       assigneeIds: JSON.stringify(m.assigneeIds || []),
+      subphaseId: m.subphaseId || 'shared',
       lastUpdated: m.lastUpdated || '',
     } }));
     if (milestones.length) { await upsert(T.milestones, ['phaseId', 'milestoneId'], milestones); mCount += milestones.length; }
