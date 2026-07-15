@@ -58,6 +58,8 @@ Two passwords in `index.html` JS (not in version control history — keep them o
 
 Leadership-only UI elements use class `full-only`; `body[data-role="full"]` shows them via CSS.
 
+**Session persistence:** on successful login the role is stored in `localStorage['m3-session']` with a 7-day sliding expiry (`saveSession`/`readSession`); `loadData` restores it on reload so users aren't logged out on every refresh. `logout()` clears it. Client-side only — same trust level as the passwords.
+
 ---
 
 ## PM Overrides — Airtable-backed via serverless proxy (Phase 1, 2026-07-10)

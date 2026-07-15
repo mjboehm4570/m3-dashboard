@@ -617,7 +617,10 @@ async function loadData() {
     await loadState();               // PM overrides (server → localStorage fallback)
     D = applyOverrides(data);
     document.getElementById('loading-screen').style.display = 'none';
-    document.getElementById('login-overlay').classList.add('visible');
+    // Restore a saved session (7-day) if present; otherwise show the login overlay.
+    const saved = readSession();
+    if (saved) setRole(saved.role);
+    else document.getElementById('login-overlay').classList.add('visible');
   } catch (e) {
     document.getElementById('loading-screen').style.display = 'none';
     document.getElementById('error-screen').style.display = 'flex';
@@ -638,9 +641,25 @@ function tryLogin() {
   }
 }
 
+// ── Session persistence (7 days, localStorage; client-side only, matches the app's auth model) ──
+const LS_SESSION = 'm3-session';
+const SESSION_DAYS = 7;
+function saveSession(r) {
+  try { localStorage.setItem(LS_SESSION, JSON.stringify({ role: r, exp: Date.now() + SESSION_DAYS * 86400000 })); } catch (e) {}
+}
+function readSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_SESSION) || 'null');
+    if (s && (s.role === 'team' || s.role === 'full') && s.exp > Date.now()) return s;
+  } catch (e) {}
+  try { localStorage.removeItem(LS_SESSION); } catch (e) {}
+  return null;
+}
+
 function setRole(r) {
   role = r;
   document.body.dataset.role = r;
+  saveSession(r);                  // persist for 7 days (sliding — refreshed each login/restore)
   document.getElementById('login-overlay').classList.remove('visible');
   document.getElementById('app').classList.add('visible');
   const badge = document.getElementById('role-badge');
@@ -652,6 +671,7 @@ function setRole(r) {
 function logout() {
   role = null;
   document.body.dataset.role = '';
+  try { localStorage.removeItem(LS_SESSION); } catch (e) {}
   document.getElementById('app').classList.remove('visible');
   document.getElementById('pw-input').value = '';
   document.getElementById('pw-error').style.display = 'none';
@@ -987,7 +1007,7 @@ function savePhaseDatesFromGantt(phaseId, start, end) {
   const o = getOverrides();
   o[phaseId + '.config'] = { budgetHours: phase.budgetHours, startDate: phase.startDate, expectedEndDate: phase.expectedEndDate, totalWeeks: phase.totalWeeks };
   remoteSave('upsertConfig', { phaseId, config: o[phaseId + '.config'] });
-  renderTimeline();
+  setTimeout(() => renderTimeline(), 0);  // defer past frappe's mouseup handler
 }
 
 // ═══════════════════════════════════════════
@@ -1609,7 +1629,9 @@ function saveMilestoneDatesFromGantt(phaseId, mId, start, end) {
   const o = getOverrides();
   o[phaseId + '.milestones'] = phase.milestones;
   remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
-  renderDetail(phaseId);
+  // Defer re-render: we're inside frappe's mouseup handler — re-rendering now would
+  // destroy the SVG it's still operating on. setTimeout runs it after the event settles.
+  setTimeout(() => renderDetail(phaseId), 0);
 }
 
 function renderDeadlinesStrip(phase) {
@@ -2220,8 +2242,12 @@ function scrollGanttToStart(el) {
 }
 function toYMD(d) {
   if (typeof d === 'string') return d.slice(0, 10);
+  // frappe returns drag dates offset by timezone (e.g. "…23:00" or "…23:59:59"),
+  // so flooring to the local day drops a dropped bar onto the wrong calendar day.
+  // Round to the nearest local day so the saved date matches where the bar landed.
+  const r = new Date(d.getTime() + 12 * 3600 * 1000);
   const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  return r.getFullYear() + '-' + p(r.getMonth() + 1) + '-' + p(r.getDate());
 }
 function addDaysYMD(ymd, delta) {
   const d = new Date(ymd + 'T12:00:00Z');
