@@ -17,8 +17,18 @@
     Leadership view:  m3-lead-2026
 -->
 <style>
+:root{
+  --text-1:#1E293B;--text-2:#64748B;--text-3:#94A3B8;
+  --surface:#fff;--surface-2:#F8FAFC;--page:#F1F5F9;
+  --border:#E2E8F0;--border-2:#CBD5E1;
+  --green:#10B981;--amber:#F59E0B;--red:#EF4444;--blue:#3B82F6;--indigo:#6366F1;
+  --tint-blue:#DBEAFE;--tint-amber:#FFFBEB;--tint-red:#FEE2E2;--tint-green:#DCFCE7;--tint-indigo:#EEF2FF;
+  --t-blue:#1D4ED8;--t-amber:#92400E;--t-red:#991B1B;--t-green:#166534;--t-indigo:#4338CA;
+  --bd-amber:#FDE68A;--bd-green:#BBF7D0;--bd-red:#FECACA;--bd-indigo:#C7D2FE;
+  --radius:10px;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#F1F5F9;color:#1E293B;font-size:14px;min-height:100vh}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:var(--page);color:var(--text-1);font-size:14px;min-height:100vh}
 
 /* ─── LOADING ─── */
 #loading-screen{position:fixed;inset:0;background:#F1F5F9;display:flex;align-items:center;justify-content:center;z-index:2000;flex-direction:column;gap:16px}
@@ -84,19 +94,46 @@ body[data-role="full"] .team-only{display:none!important}
 .freshness-note{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748B}
 .freshness-dot{width:7px;height:7px;background:#10B981;border-radius:50%;flex-shrink:0}
 
-/* ─── HEALTH BANNER ─── */
-.health-banner{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 20px;display:flex;align-items:center;gap:24px;margin-bottom:24px;flex-wrap:wrap}
-.banner-label{font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em}
-.banner-stat{display:flex;align-items:center;gap:8px}
-.banner-dot{width:8px;height:8px;border-radius:50%}
-.banner-dot.green{background:#10B981}
-.banner-dot.yellow{background:#F59E0B}
-.banner-dot.red{background:#EF4444}
-.banner-dot.gray{background:#CBD5E1}
-.banner-num{font-size:15px;font-weight:700;color:#1E293B}
-.banner-text{font-size:13px;color:#64748B}
-.banner-div{width:1px;height:24px;background:#E2E8F0}
-.banner-alert{margin-left:auto;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:5px 12px;font-size:12px;color:#92400E;font-weight:500}
+/* ─── PROGRAM HEADER ─── */
+.prog-health{display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.ph-label{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em}
+.ph-stat{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2)}
+.ph-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ph-dot.green{background:var(--green)}
+.ph-dot.gray{background:var(--border-2)}
+.ph-dot.blue{background:var(--blue)}
+.prog-health .freshness-note{margin-left:auto}
+
+/* ─── KPI STRIP ─── */
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.kpi-tile.warn{background:var(--tint-amber);border-color:var(--bd-amber)}
+.kpi-tile.danger{background:var(--tint-red);border-color:var(--bd-red)}
+.kpi-top{font-size:12px;color:var(--text-2)}
+.kpi-tile.warn .kpi-top,.kpi-tile.warn .kpi-value,.kpi-tile.warn .kpi-sub{color:var(--t-amber)}
+.kpi-tile.danger .kpi-top,.kpi-tile.danger .kpi-value,.kpi-tile.danger .kpi-sub{color:var(--t-red)}
+.kpi-value{font-size:22px;font-weight:700;color:var(--text-1);margin-top:5px}
+.kpi-value small{font-size:13px;font-weight:500;color:var(--text-3)}
+.kpi-sub{font-size:12px;color:var(--text-2);margin-top:2px}
+.kpi-sub.good{color:var(--green)}
+
+/* ─── NEEDS ATTENTION ─── */
+.attn-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:24px}
+.attn-title{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.attn-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;margin-bottom:6px;cursor:pointer;border:1px solid transparent}
+.attn-item:last-child{margin-bottom:0}
+.attn-item.overdue{background:var(--tint-red);border-color:var(--bd-red)}
+.attn-item.soon{background:var(--tint-amber);border-color:var(--bd-amber)}
+.attn-item:hover{filter:brightness(.98)}
+.attn-icon{font-size:15px;flex-shrink:0}
+.attn-body{flex:1;min-width:0}
+.attn-name{font-size:13px;color:var(--text-1)}
+.attn-name .attn-loc{color:var(--text-3)}
+.attn-meta{font-size:12px;color:var(--text-2);margin-top:1px}
+.attn-days{font-size:12px;font-weight:600;white-space:nowrap}
+.attn-item.overdue .attn-days{color:var(--t-red)}
+.attn-item.soon .attn-days{color:var(--t-amber)}
+.attn-clear{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:8px;background:var(--tint-green);border:1px solid var(--bd-green);font-size:13px;color:var(--t-green);font-weight:500}
 
 /* ─── SECTION LABEL ─── */
 .section-label{font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
@@ -150,6 +187,40 @@ body[data-role="full"] .team-only{display:none!important}
 .retainer-card{display:flex;gap:20px}
 .retainer-section{flex:1}
 .retainer-divider{width:1px;background:#E2E8F0}
+
+/* ─── DELIVERY BLOCK (card) ─── */
+.deliv-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.deliv-label{font-size:12px;color:var(--text-2);font-weight:500}
+.deliv-counts{font-size:12px;color:var(--text-2)}
+.deliv-bar{display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden;margin-bottom:12px;background:var(--page)}
+.seg-done{background:var(--green)}
+.seg-prog{background:var(--blue)}
+.seg-todo{background:var(--border-2)}
+.deliv-empty{font-size:12px;color:var(--text-3);padding:8px 0 12px;display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.deliv-foot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)}
+.owners{display:inline-flex;align-items:center}
+.ms-avatar.more{background:var(--surface-2);color:var(--text-2)}
+.next-chip{font-size:12px;color:var(--text-2);display:inline-flex;align-items:center;gap:5px}
+.next-chip.soon{color:var(--t-amber)}
+.next-chip.overdue{color:var(--t-red);font-weight:600}
+.hours-inline{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
+.hours-lbl{color:var(--text-3)}
+.hours-track{display:inline-block;width:56px;height:5px;background:var(--page);border-radius:3px;overflow:hidden}
+.hours-fill{display:block;height:100%;border-radius:3px;background:var(--blue)}
+.hours-pct{font-weight:700}
+.hours-pct.ok{color:var(--green)}
+.hours-pct.warn{color:var(--amber)}
+
+/* ─── UPCOMING / RETAINER CARDS ─── */
+.upcoming-card{background:var(--surface-2);border:1px dashed var(--border-2);border-radius:var(--radius);padding:14px 16px;flex:1;cursor:pointer;transition:border-color .15s}
+.upcoming-card:hover{border-color:var(--text-3)}
+.upcoming-card.retainer{border-style:solid;border-color:var(--bd-indigo);background:var(--tint-indigo)}
+.uc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.uc-name{font-size:14px;font-weight:600;color:var(--text-1)}
+.uc-meta{font-size:12px;color:var(--text-3);margin-top:2px}
+.uc-cta{margin-top:10px;font-size:12px;color:var(--indigo);font-weight:600;background:none;border:none;padding:0;cursor:pointer}
+.uc-cta:hover{text-decoration:underline}
+.uc-note{margin-top:10px;font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:5px}
 
 /* ─── BACK BTN ─── */
 .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#64748B;background:none;border:none;cursor:pointer;padding:0;margin-bottom:20px;font-weight:500}
@@ -782,71 +853,189 @@ function pct(n) { return Math.round(n) + '%'; }
 // ═══════════════════════════════════════════
 function renderOverview() {
   const phases = D.phases;
-  let onTrack = 0, atRisk = 0, upcoming = 0, complete = 0;
+  let active = 0, upcomingN = 0, retainerN = 0, completeN = 0;
   phases.forEach(p => {
-    const s = phaseHealthState(p);
-    if (s === 'on-track') onTrack++;
-    else if (s === 'at-risk' || s === 'critical') atRisk++;
-    else if (s === 'upcoming') upcoming++;
-    else if (s === 'complete') complete++;
+    if (p.type === 'retainer') retainerN++;
+    else if (p.state === 'active') active++;
+    else if (p.state === 'upcoming') upcomingN++;
+    else if (p.state === 'complete') completeN++;
   });
 
   const lastUpdated = new Date(D.lastUpdated);
   const freshStr = lastUpdated.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) +
     ' ' + lastUpdated.toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit',timeZoneName:'short'});
 
-  const atRiskPhase = phases.find(p => phaseHealthState(p) === 'at-risk' || phaseHealthState(p) === 'critical');
+  const activePhase = phases.find(p => p.state === 'active');
 
-  // Deadline tallies across all phases (incomplete milestones with a target date)
+  // Program-wide deadline items (uses the full milestone set, not the per-phase track lens)
+  const attnItems = [];
   let overdueTot = 0, soonTot = 0;
   phases.forEach(p => (p.milestones || []).forEach(m => {
-    const s = milestoneDateStatus(m, p);
-    if (s === 'overdue') overdueTot++;
-    else if (s === 'soon') soonTot++;
+    const ds = milestoneDateStatus(m, p);
+    if (ds === 'overdue') { overdueTot++; attnItems.push({ p, m, ds, d: daysUntil(m.targetDate) }); }
+    else if (ds === 'soon') { soonTot++; attnItems.push({ p, m, ds, d: daysUntil(m.targetDate) }); }
   }));
+  attnItems.sort((a, b) => a.d - b.d);
 
   let html = `
-    <div class="health-banner">
-      <span class="banner-label">Program Health</span>
-      <div class="banner-stat"><div class="banner-dot green"></div><span class="banner-num">${onTrack}</span><span class="banner-text">On Track</span></div>
-      <div class="banner-div"></div>
-      <div class="banner-stat"><div class="banner-dot yellow"></div><span class="banner-num">${atRisk}</span><span class="banner-text">At Risk</span></div>
-      <div class="banner-div"></div>
-      <div class="banner-stat"><div class="banner-dot gray"></div><span class="banner-num">${upcoming}</span><span class="banner-text">Upcoming</span></div>
-      ${overdueTot > 0 ? `<div class="banner-div"></div><div class="banner-stat"><div class="banner-dot red"></div><span class="banner-num">${overdueTot}</span><span class="banner-text">Overdue</span></div>` : ''}
-      <div class="banner-div"></div>
+    <div class="prog-health">
+      <span class="ph-label">Program Health</span>
+      <span class="ph-stat"><span class="ph-dot green"></span>${active} active</span>
+      <span class="ph-stat"><span class="ph-dot gray"></span>${upcomingN} upcoming</span>
+      ${retainerN ? `<span class="ph-stat"><span class="ph-dot blue"></span>${retainerN} retainer</span>` : ''}
+      ${completeN ? `<span class="ph-stat"><span class="ph-dot green"></span>${completeN} complete</span>` : ''}
       <div class="freshness-note">
         <div class="freshness-dot"></div>
         <span>Data as of <strong>${freshStr}</strong> · Syncs nightly from ProjectX</span>
       </div>
-      ${overdueTot > 0
-        ? `<div class="banner-alert">⏰ ${overdueTot} milestone${overdueTot > 1 ? 's' : ''} overdue${atRiskPhase ? ` · Phase ${atRiskPhase.number} at risk` : ''}</div>`
-        : (atRiskPhase
-            ? `<div class="banner-alert">⚠️ Phase ${atRiskPhase.number} at risk — click card to view</div>`
-            : (soonTot > 0 ? `<div class="banner-alert">⏰ ${soonTot} milestone${soonTot > 1 ? 's' : ''} due within ${DUE_SOON_DAYS} days</div>` : ''))}
     </div>
-    <div class="section-label">All Phases</div>
-    <div class="phase-grid">`;
+    ${renderKpiStrip(phases, activePhase, overdueTot, soonTot)}
+    ${renderAttentionPanel(attnItems)}
+    <div class="section-label">Active Now</div>
+    <div class="phase-grid">${renderActiveGroup(phases.filter(p => p.type !== 'retainer' && (p.state === 'active' || p.state === 'complete')))}</div>`;
 
-  // Group phases: 1 solo, 2+3 concurrent, 4 solo, 5 solo
-  const solo = [phases[0], phases[3], phases[4]];
-  const concurrent = [phases[1], phases[2]];
-
-  html += renderPhaseCard(phases[0]);
-  html += `<div class="phase-row concurrent"><div class="concurrent-label">⇄ Running Concurrently</div>${renderPhaseCard(phases[1])}${renderPhaseCard(phases[2])}</div>`;
-  html += renderPhaseCard(phases[3]);
-  html += renderPhaseCard(phases[4]);
-  html += `</div>`;
+  const upc = phases.filter(p => p.type === 'retainer' || p.state === 'upcoming');
+  if (upc.length) {
+    html += `<div class="section-label" style="margin-top:24px">Upcoming</div>
+      <div class="phase-grid">${renderUpcomingSection(upc)}</div>`;
+  }
 
   document.getElementById('page-overview').innerHTML = html;
 }
 
+// KPI strip — four program dimensions: schedule, delivery, hours, attention.
+function renderKpiStrip(phases, activePhase, overdueTot, soonTot) {
+  let schedVal, schedSub;
+  if (activePhase && activePhase.totalWeeks) {
+    schedVal = `Week ${activePhase.elapsedWeeks} <small>of ${activePhase.totalWeeks}</small>`;
+    const hs = phaseHealthState(activePhase);
+    schedSub = hs === 'on-track' ? 'On schedule' : (hs === 'complete' ? 'Complete' : 'Needs attention');
+  } else { schedVal = '—'; schedSub = 'No active phase'; }
+
+  let msTotal = 0, msDone = 0, pctSum = 0;
+  phases.forEach(p => (p.milestones || []).forEach(m => { msTotal++; if (m.status === 'complete') msDone++; pctSum += (m.completionPct || 0); }));
+  const progPct = msTotal ? Math.round(pctSum / msTotal) : null;
+  const delivVal = msTotal ? `${msDone} <small>of ${msTotal} done</small>` : '—';
+  const delivSub = msTotal ? `${progPct}% complete` : 'No milestones yet';
+
+  // Hours reflect in-flight work: sum active phases (fall back to all started/non-retainer phases
+  // if none are active), so the burn % isn't diluted by not-yet-started future budgets.
+  const activeHrs = phases.filter(p => p.state === 'active' && p.budgetHours);
+  const hoursSrc = activeHrs.length ? activeHrs : phases.filter(p => p.type !== 'retainer' && p.budgetHours && p.usedHours > 0);
+  let usedTot = 0, budgetTot = 0;
+  hoursSrc.forEach(p => { usedTot += p.usedHours; budgetTot += p.budgetHours; });
+  const burnTot = budgetTot ? Math.round(usedTot / budgetTot * 100) : 0;
+  const hoursVal = budgetTot ? `${fmt(usedTot)} <small>/ ${fmt(budgetTot)}</small>` : '—';
+  let paceSub = budgetTot ? `${burnTot}% burned` : 'Not started', hoursSubCls = '';
+  if (activePhase) {
+    const under = Math.round(burnPct(activePhase)) <= Math.round(timePct(activePhase));
+    paceSub = `${burnTot}% burned · ${under ? 'under pace' : 'ahead of pace'}`;
+    hoursSubCls = under ? 'good' : '';
+  }
+
+  let attnCls = '', attnVal, attnSub;
+  if (overdueTot > 0) { attnCls = 'danger'; attnVal = `${overdueTot} <small>overdue</small>`; attnSub = `${soonTot} due soon`; }
+  else if (soonTot > 0) { attnCls = 'warn'; attnVal = `${soonTot} <small>due soon</small>`; attnSub = '0 overdue'; }
+  else { attnVal = 'All clear'; attnSub = 'Nothing due'; }
+
+  return `<div class="kpi-strip">
+    <div class="kpi-tile"><div class="kpi-top">Schedule</div><div class="kpi-value">${schedVal}</div><div class="kpi-sub">${schedSub}</div></div>
+    <div class="kpi-tile"><div class="kpi-top">Delivery</div><div class="kpi-value">${delivVal}</div><div class="kpi-sub">${delivSub}</div></div>
+    <div class="kpi-tile"><div class="kpi-top">Hours</div><div class="kpi-value">${hoursVal}</div><div class="kpi-sub ${hoursSubCls}">${paceSub}</div></div>
+    <div class="kpi-tile ${attnCls}"><div class="kpi-top">Attention</div><div class="kpi-value">${attnVal}</div><div class="kpi-sub">${attnSub}</div></div>
+  </div>`;
+}
+
+// Program-level attention list — aggregated overdue + due-soon milestones across all phases.
+function renderAttentionPanel(items) {
+  let inner;
+  if (!items.length) {
+    inner = `<div class="attn-clear"><span>✓</span> All clear — nothing overdue or due soon</div>`;
+  } else {
+    inner = items.map(({ p, m, ds, d }) => {
+      const owners = milestoneOwners(m, p);
+      const ownerStr = owners.length ? owners.map(o => o.name).join(', ') : 'Unassigned';
+      const track = isSplitPhase(p) && m.subphaseId && m.subphaseId !== 'shared' ? ` · ${trackBadge(p, m.subphaseId).label}` : '';
+      return `<div class="attn-item ${ds}" onclick="goToPhase('${p.id}')">
+        <span class="attn-icon">${ds === 'overdue' ? '⏰' : '📅'}</span>
+        <div class="attn-body">
+          <div class="attn-name">${m.name} <span class="attn-loc">· Phase ${p.number}${track}</span></div>
+          <div class="attn-meta">${fmtDate(m.targetDate)} · ${ownerStr}</div>
+        </div>
+        <span class="attn-days">${daysLabel(d)}</span>
+      </div>`;
+    }).join('');
+  }
+  return `<div class="attn-panel"><div class="attn-title">Needs Attention</div>${inner}</div>`;
+}
+
+// Full cards for active/complete phases; concurrent pairs (via concurrentWith) render side by side.
+function renderActiveGroup(list) {
+  const done = new Set();
+  let html = '';
+  list.forEach(p => {
+    if (done.has(p.id)) return;
+    const partner = p.concurrentWith ? list.find(x => x.id === p.concurrentWith && !done.has(x.id)) : null;
+    if (partner) {
+      html += `<div class="phase-row concurrent"><div class="concurrent-label">⇄ Running Concurrently</div>${renderPhaseCard(p)}${renderPhaseCard(partner)}</div>`;
+      done.add(p.id); done.add(partner.id);
+    } else {
+      html += renderPhaseCard(p);
+      done.add(p.id);
+    }
+  });
+  return html;
+}
+
+// Compact placeholder cards for upcoming/retainer phases; concurrent pairs grouped, remaining paired 2-up.
+function renderUpcomingSection(upc) {
+  const done = new Set();
+  const rows = [];
+  let soloBuf = [];
+  const flushSolo = () => { while (soloBuf.length) rows.push(`<div class="phase-row">${soloBuf.splice(0, 2).join('')}</div>`); };
+  upc.forEach(p => {
+    if (done.has(p.id)) return;
+    const partner = p.concurrentWith ? upc.find(x => x.id === p.concurrentWith && !done.has(x.id)) : null;
+    if (partner) {
+      flushSolo();
+      rows.push(`<div class="phase-row concurrent"><div class="concurrent-label">⇄ Running Concurrently</div>${renderUpcomingCard(p)}${renderUpcomingCard(partner)}</div>`);
+      done.add(p.id); done.add(partner.id);
+    } else {
+      soloBuf.push(renderUpcomingCard(p));
+      done.add(p.id);
+    }
+  });
+  flushSolo();
+  return rows.join('');
+}
+
+function renderUpcomingCard(phase) {
+  const isRetainer = phase.type === 'retainer';
+  const badge = isRetainer
+    ? `<span class="status-badge badge-active">Retainer</span>`
+    : `<span class="status-badge badge-upcoming">Upcoming</span>`;
+  let meta, foot;
+  if (isRetainer) {
+    meta = `Monthly cap${phase.monthlyCapHours ? ' · ' + fmt(phase.monthlyCapHours) + ' hrs' : ''} · activates after Phase 4`;
+    foot = `<div class="uc-note"><span>⟳</span> Rolling monthly model</div>`;
+  } else if (phase.startDate) {
+    meta = `${fmtDate(phase.startDate)} → ${fmtDate(phase.expectedEndDate)} · ${phase.totalWeeks} wks`;
+    foot = '';
+  } else {
+    meta = `~${fmt(phase.budgetHours)} hrs · ${phase.totalWeeks} wks · dates TBD`;
+    foot = `<button class="uc-cta full-only" onclick="event.stopPropagation();openEditPhase('${phase.id}')">Schedule this phase →</button><div class="uc-note team-only">Not yet scheduled</div>`;
+  }
+  return `<div class="phase-row" style="flex:1"><div class="upcoming-card${isRetainer ? ' retainer' : ''}" onclick="goToPhase('${phase.id}')">
+    <div class="uc-top"><span class="card-phase-num">Phase ${phase.number}</span>${badge}</div>
+    <div class="uc-name">${phase.name}</div>
+    <div class="uc-meta">${meta}</div>
+    ${foot}
+  </div></div>`;
+}
+
+// Delivery-led phase card: milestone progress + owners + next deadline primary; hours demoted to one line.
 function renderPhaseCard(phase) {
   const health = phaseHealthState(phase);
-  const bp = burnPct(phase);
-  const tp = timePct(phase);
-  const dp = deliverablePct(phase.milestones);
-
   const badgeMap = {
     'on-track': ['badge-active','Active'],
     'at-risk': ['badge-at-risk','⚠ At Risk'],
@@ -866,89 +1055,69 @@ function renderPhaseCard(phase) {
     ? phase.subphases.map(s => s.label + ': ' + s.name).join(' · ')
     : phase.subtitle;
 
-  let gaugeOpacity = health === 'upcoming' ? 'opacity:.45;pointer-events:none' : '';
+  const header = `<div class="card-top">
+      <div>
+        <div class="card-phase-num">Phase ${phase.number}</div>
+        <div class="card-name">${phase.name}</div>
+        <div class="card-sub">${subLabel}</div>
+      </div>
+      <span class="status-badge ${badgeCls}">${badgeLabel}</span>
+    </div>`;
 
-  let cardContent = '';
-
+  // Retainer fallback (if a retainer phase is ever active — normally rendered as an upcoming card).
   if (phase.type === 'retainer') {
-    cardContent = `
-      <div class="retainer-card">
-        <div class="retainer-section">
-          <div class="metric-label" style="margin-bottom:4px">Monthly Cap</div>
-          <div class="metric-value">${fmt(phase.monthlyCapHours)} hrs</div>
-          <div class="metric-sub">Per month · adjustable</div>
-        </div>
-        <div class="retainer-divider"></div>
-        <div class="retainer-section" style="padding-left:20px">
-          <div class="metric-label" style="margin-bottom:4px">Tracking Model</div>
-          <div style="font-size:13px;color:#64748B;margin-top:4px;line-height:1.4">Rolling monthly view with cumulative history. Activates when Phase 4 completes.</div>
-        </div>
-      </div>`;
+    return `<div class="phase-row" style="flex:1"><div class="phase-card state-${health}" onclick="goToPhase('${phase.id}')">
+      ${header}
+      <div class="card-dates">Monthly cap${phase.monthlyCapHours ? ' · <strong>' + fmt(phase.monthlyCapHours) + ' hrs</strong>' : ''} · rolling monthly model</div>
+    </div></div>`;
+  }
+
+  const ms = phase.milestones || [];
+  let deliv;
+  if (!ms.length) {
+    deliv = `<div class="deliv-empty">No deliverables tracked yet<button class="uc-cta full-only" style="margin:0 0 0 4px" onclick="event.stopPropagation();goToPhase('${phase.id}')">+ Add milestones →</button></div>
+      <div class="deliv-foot">${hoursInline(phase)}</div>`;
   } else {
-    const wr = weeksRemaining(phase);
-    cardContent = `
-      <div class="card-metrics">
-        <div class="metric-item">
-          <div class="metric-label">Hours Used</div>
-          <div class="metric-value">${fmt(phase.usedHours)}</div>
-          <div class="metric-sub">of ${fmt(phase.budgetHours)} hrs</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-label">Hrs Remaining</div>
-          <div class="metric-value">${fmt(phase.budgetHours - phase.usedHours)}</div>
-          <div class="metric-sub">${wr ? '~'+wr+' wks at pace' : 'Not started'}</div>
-        </div>
-        ${phase.usedHours > 0 ? `<div class="metric-item">
-          <div class="metric-label">Avg Weekly Burn</div>
-          <div class="metric-value">${fmt(weeklyBurnRate(phase))} hrs</div>
-          <div class="metric-sub">trailing avg</div>
-        </div>` : ''}
-      </div>
-      <div class="gauge-compact" style="${gaugeOpacity}">
-        ${gaugeRowC('Hrs Burned', bp, 'fill-burn', 'pct-burn')}
-        ${gaugeRowC('Time Elapsed', tp, 'fill-time', 'pct-time')}
-        ${dp !== null ? gaugeRowC('Deliverables', dp, 'fill-progress', 'pct-progress') : gaugeRowC('Deliverables', 0, 'fill-progress', 'pct-progress', true)}
-      </div>
-      ${alertStrip(phase)}`;
+    const nDone = ms.filter(m => m.status === 'complete').length;
+    const nProg = ms.filter(m => m.status === 'in_progress').length;
+    const nTodo = ms.length - nDone - nProg;
+    const seg = `<div class="deliv-bar">${nDone ? `<div class="seg-done" style="flex:${nDone}"></div>` : ''}${nProg ? `<div class="seg-prog" style="flex:${nProg}"></div>` : ''}${nTodo ? `<div class="seg-todo" style="flex:${nTodo}"></div>` : ''}</div>`;
+    const owners = uniqueOwners(phase, ms);
+    const avatars = owners.length
+      ? `<span class="owners">${owners.slice(0, 4).map(o => `<span class="ms-avatar" title="${o.name} · ${o.role}">${initials(o.name)}</span>`).join('')}${owners.length > 4 ? `<span class="ms-avatar more">+${owners.length - 4}</span>` : ''}</span>`
+      : '';
+    const next = ms.filter(m => m.status !== 'complete' && m.targetDate)
+      .map(m => ({ m, d: daysUntil(m.targetDate), ds: milestoneDateStatus(m, phase) }))
+      .sort((a, b) => a.d - b.d)[0];
+    const nextChip = next
+      ? `<span class="next-chip ${next.ds === 'overdue' ? 'overdue' : (next.ds === 'soon' ? 'soon' : '')}">⚑ Next: ${next.m.name} · ${daysLabel(next.d)}</span>`
+      : '';
+    deliv = `<div class="deliv-head"><span class="deliv-label">Deliverables</span><span class="deliv-counts">${nDone} done · ${nProg} in progress · ${nTodo} to start</span></div>
+      ${seg}
+      <div class="deliv-foot">${avatars}${nextChip}${hoursInline(phase)}</div>`;
   }
 
   return `<div class="phase-row" style="flex:1">
     <div class="phase-card state-${health}" onclick="goToPhase('${phase.id}')">
-      <div class="card-top">
-        <div>
-          <div class="card-phase-num">Phase ${phase.number}</div>
-          <div class="card-name">${phase.name}</div>
-          <div class="card-sub">${subLabel}</div>
-        </div>
-        <span class="status-badge ${badgeCls}">${badgeLabel}</span>
-      </div>
+      ${header}
       <div class="card-dates">${dateStr}</div>
-      ${cardContent}
+      ${deliv}
     </div>
   </div>`;
 }
 
-function gaugeRowC(label, val, fillCls, pctCls, empty) {
-  return `<div class="gauge-row-c">
-    <span class="gauge-label-c">${label}</span>
-    <div class="gauge-track-c"><div class="gauge-fill-c ${fillCls}" style="width:${empty ? 0 : Math.min(val,100)}%"></div></div>
-    <span class="gauge-pct-c ${pctCls}">${empty ? '—' : pct(val)}</span>
-  </div>`;
+// Compact one-line hours summary (used / budget + burn bar + pace-colored %).
+function hoursInline(phase) {
+  const bp = Math.round(burnPct(phase));
+  const paceCls = bp <= Math.round(timePct(phase)) ? 'ok' : 'warn';
+  return `<span class="hours-inline"><span class="hours-lbl">Hours</span>${fmt(phase.usedHours)} / ${fmt(phase.budgetHours)}<span class="hours-track"><span class="hours-fill" style="width:${Math.min(bp, 100)}%"></span></span><span class="hours-pct ${paceCls}">${bp}%</span></span>`;
 }
 
-function alertStrip(phase) {
-  const health = phaseHealthState(phase);
-  if (health !== 'at-risk' && health !== 'critical') return '';
-  const bp = burnPct(phase);
-  const tp = timePct(phase);
-  const dp = deliverablePct(phase.milestones);
-  const pg = dp !== null ? Math.round(bp - dp) : 0;
-  const bd = Math.round(bp - tp);
-  let msg = '';
-  if (pg >= phase.alertThresholds.progressGapWarn) msg = `Progress gap: burning ${pg} pts ahead of deliverables`;
-  else if (bd >= phase.alertThresholds.paceWarnDelta) msg = `Pace alert: burn is ${bd} pts ahead of time elapsed`;
-  else msg = `Hours at ${Math.round(bp)}% — threshold approaching`;
-  return `<div class="card-alert-strip"><span>⚠️</span>${msg} · Click to view detail</div>`;
+// Distinct milestone owners across a phase (dedup by staff id, preserving order).
+function uniqueOwners(phase, milestones) {
+  const seen = new Set(), out = [];
+  milestones.forEach(m => milestoneOwners(m, phase).forEach(o => { if (!seen.has(o.id)) { seen.add(o.id); out.push(o); } }));
+  return out;
 }
 
 // ═══════════════════════════════════════════
