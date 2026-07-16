@@ -64,7 +64,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 /* ─── NAV ─── */
 .topbar{background:#fff;border-bottom:1px solid #E2E8F0;padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
 .topbar-left{display:flex;align-items:center;gap:10px}
-.topbar-logo{font-size:13px;font-weight:700;color:#64748B;letter-spacing:.08em;text-transform:uppercase}
+.topbar-logo{height:28px;width:auto;cursor:pointer;display:block}
 .topbar-div{width:1px;height:20px;background:#E2E8F0}
 .topbar-title{font-size:14px;font-weight:600;color:#1E293B}
 .topbar-client{font-size:12px;color:#94A3B8;margin-left:4px}
@@ -517,7 +517,7 @@ tr:hover td{background:#FAFAFA}
 <div id="app">
   <div class="topbar">
     <div class="topbar-left">
-      <span class="topbar-logo">Dualboot</span>
+      <img src="assets/dbdos-logo.png" alt="Home" class="topbar-logo" onclick="goToOverview()" title="Program Overview">
       <div class="topbar-div"></div>
       <span class="topbar-title">M3 Engagement</span>
       <span class="topbar-client">· Phase Tracker</span>
@@ -617,6 +617,17 @@ const LS_SECRET = 'm3-edit-secret';
 
 // Synchronous accessor used everywhere in the UI — returns the loaded cache.
 function getOverrides() { return overridesCache; }
+
+// Records a changelog entry (shared by the phase modal, milestone modal, and Gantt drag saves)
+// so every tracked mutation — not just phase-config edits — shows up in the changelog and chat.
+function logChangelog(phaseId, phaseName, note, changes) {
+  if (!changes || !changes.length) return;
+  const o = getOverrides();
+  if (!o.changelog) o.changelog = [];
+  const entry = { ts: new Date().toISOString(), phaseId, phaseName, note, changes };
+  o.changelog.unshift(entry);
+  remoteSave('appendChangelog', { entry });
+}
 
 function cacheOverridesLocal() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(overridesCache)); } catch (e) {}
@@ -1212,11 +1223,21 @@ function setProgramView(v) { programGanttView = v; renderTimeline(); }
 function savePhaseDatesFromGantt(phaseId, start, end) {
   const phase = D.phases.find(p => p.id === phaseId);
   if (!phase) return;
+  const oldStart = phase.startDate, oldEnd = phase.expectedEndDate;
   phase.startDate = toYMD(start);
   phase.expectedEndDate = toYMD(end);
   const o = getOverrides();
   o[phaseId + '.config'] = { budgetHours: phase.budgetHours, startDate: phase.startDate, expectedEndDate: phase.expectedEndDate, totalWeeks: phase.totalWeeks };
   remoteSave('upsertConfig', { phaseId, config: o[phaseId + '.config'] });
+
+  const changes = [];
+  if ((oldStart || '') !== phase.startDate) changes.push({ label: 'Start Date', from: fmtDate(oldStart), to: fmtDate(phase.startDate) });
+  if ((oldEnd || '') !== phase.expectedEndDate) changes.push({ label: 'Expected End', from: fmtDate(oldEnd), to: fmtDate(phase.expectedEndDate) });
+  if (changes.length) {
+    const note = prompt(`Reason for rescheduling ${phase.name}? (optional)`) || '';
+    logChangelog(phaseId, phase.name, note, changes);
+  }
+
   setTimeout(() => renderTimeline(), 0);  // defer past frappe's mouseup handler
 }
 
@@ -1911,12 +1932,22 @@ function saveMilestoneDatesFromGantt(phaseId, mId, start, end) {
   const phase = D.phases.find(p => p.id === phaseId);
   const m = phase && phase.milestones.find(x => x.id === mId);
   if (!m) return;
+  const oldStart = m.startDate, oldTarget = m.targetDate;
   m.startDate = toYMD(start);
   m.targetDate = toYMD(end);
   m.lastUpdated = new Date().toISOString();
   const o = getOverrides();
   o[phaseId + '.milestones'] = phase.milestones;
   remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
+
+  const changes = [];
+  if ((oldStart || '') !== m.startDate) changes.push({ label: 'Start Date', from: fmtDate(oldStart), to: fmtDate(m.startDate) });
+  if ((oldTarget || '') !== m.targetDate) changes.push({ label: 'Target Date', from: fmtDate(oldTarget), to: fmtDate(m.targetDate) });
+  if (changes.length) {
+    const note = prompt(`Reason for rescheduling "${m.name}"? (optional)`) || '';
+    logChangelog(phaseId, phase.name, note, changes);
+  }
+
   // Defer re-render: we're inside frappe's mouseup handler — re-rendering now would
   // destroy the SVG it's still operating on. setTimeout runs it after the event settles.
   setTimeout(() => renderDetail(phaseId), 0);
@@ -2167,6 +2198,22 @@ function buildMilestoneForm(m, phase) {
     </div>`;
 }
 
+// Diffs a milestone edit for the changelog. Returns a single "created" row for new milestones.
+function buildMilestoneChanges(existing, newM) {
+  if (!existing) return [{ label: 'Milestone Created', from: '—', to: newM.name }];
+  const changes = [];
+  if (existing.name !== newM.name) changes.push({ label: 'Name', from: existing.name, to: newM.name });
+  if ((existing.startDate || '') !== (newM.startDate || ''))
+    changes.push({ label: 'Start Date', from: fmtDate(existing.startDate), to: fmtDate(newM.startDate) });
+  if ((existing.targetDate || '') !== (newM.targetDate || ''))
+    changes.push({ label: 'Target Date', from: fmtDate(existing.targetDate), to: fmtDate(newM.targetDate) });
+  if (existing.status !== newM.status) changes.push({ label: 'Status', from: existing.status, to: newM.status });
+  if (existing.completionPct !== newM.completionPct)
+    changes.push({ label: 'Completion', from: existing.completionPct + '%', to: newM.completionPct + '%' });
+  if ((existing.notes || '') !== (newM.notes || '')) changes.push({ label: 'Notes', from: existing.notes || '—', to: newM.notes || '—' });
+  return changes;
+}
+
 function saveMilestone() {
   const { phaseId, milestoneId } = editingMilestone;
   const phase = D.phases.find(p => p.id === phaseId);
@@ -2197,6 +2244,8 @@ function saveMilestone() {
     newM.status = 'complete';
   }
 
+  const changes = buildMilestoneChanges(existing, newM);
+
   if (milestoneId) {
     const idx = phase.milestones.findIndex(m => m.id === milestoneId);
     if (idx >= 0) phase.milestones[idx] = newM;
@@ -2209,6 +2258,11 @@ function saveMilestone() {
   o[phaseId + '.milestones'] = phase.milestones;
   remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
 
+  if (changes.length) {
+    const note = prompt('Reason for this change (optional):') || '';
+    logChangelog(phaseId, phase.name, note, changes);
+  }
+
   closeModal();
   renderDetail(phaseId);
 }
@@ -2216,10 +2270,15 @@ function saveMilestone() {
 function deleteMilestone() {
   const { phaseId, milestoneId } = editingMilestone;
   const phase = D.phases.find(p => p.id === phaseId);
+  const m = phase.milestones.find(x => x.id === milestoneId);
   phase.milestones = phase.milestones.filter(m => m.id !== milestoneId);
   const o = getOverrides();
   o[phaseId + '.milestones'] = phase.milestones;
   remoteSave('savePhaseMilestones', { phaseId, milestones: phase.milestones });
+  if (m) {
+    const note = prompt(`Reason for deleting "${m.name}"? (optional)`) || '';
+    logChangelog(phaseId, phase.name, note, [{ label: 'Milestone Deleted', from: m.name, to: '—' }]);
+  }
   closeModal();
   renderDetail(phaseId);
 }
@@ -2421,11 +2480,8 @@ function savePhase() {
 
     const o = getOverrides();
     o[phaseId + '.config'] = { budgetHours, startDate, expectedEndDate, totalWeeks };
-    if (!o.changelog) o.changelog = [];
-    const entry = { ts: new Date().toISOString(), phaseId, phaseName: phase.name, note, changes };
-    o.changelog.unshift(entry);
     remoteSave('upsertConfig', { phaseId, config: { budgetHours, startDate, expectedEndDate, totalWeeks } });
-    remoteSave('appendChangelog', { entry });
+    logChangelog(phaseId, phase.name, note, changes);
 
     closeModal();
     renderDetail(phaseId);

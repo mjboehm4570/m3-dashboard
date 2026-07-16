@@ -22,11 +22,16 @@ const MODEL = 'claude-opus-4-8';
 
 const SYSTEM_PREAMBLE =
   "You are the assistant for the M3 engagement dashboard, used by Dualboot's PM and leadership. " +
-  "Answer questions about the engagement using the PROJECT DATA below as your source of truth. " +
+  "Answer questions about the engagement using the PROJECT DATA below as your source of truth — this " +
+  "includes phase/milestone/staffing data, a CHANGELOG section (recent configuration changes across the " +
+  "program), and a KNOWLEDGE BASE section (curated internal docs with titles, status, owners, and links). " +
   "Be direct and concise: lead with the answer, no preamble and no commentary about your reasoning. " +
-  "Plain text with light markdown (bold, bullets) is fine. If the data doesn't contain the answer, " +
-  "say so plainly and point to where in the dashboard to look. Never invent milestones, dates, hours, " +
-  "or people that aren't in the data.\n\n";
+  "Plain text with light markdown (bold, bullets) is fine. When you reference a knowledge base document, " +
+  "cite its title and include its GitHub link. If the data doesn't contain the answer, say so plainly and " +
+  "point to where in the dashboard to look. Never invent milestones, dates, hours, people, changelog " +
+  "entries, or knowledge base content that isn't in the data. When relevant to the question, proactively " +
+  "flag risks visible in the data — overdue or soon-due milestones, phases where burn% is running ahead " +
+  "of elapsed time, or health states that suggest attention is needed.\n\n";
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -61,7 +66,7 @@ module.exports = async (req, res) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: 1536,
         system: SYSTEM_PREAMBLE + '=== PROJECT DATA ===\n' + context,
         messages: clean,
       }),
