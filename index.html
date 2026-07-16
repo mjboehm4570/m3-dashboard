@@ -314,6 +314,7 @@ tr:hover td{background:#FAFAFA}
 .sms-fill-b{background:#F59E0B;height:100%}
 
 /* ─── MILESTONES ─── */
+.ms-row-complete{opacity:.5}
 .ms-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px}
 .ms-complete{background:#DCFCE7;color:#166534}
 .ms-inprogress{background:#DBEAFE;color:#1D4ED8}
@@ -386,6 +387,8 @@ tr:hover td{background:#FAFAFA}
 .gantt .bar-wrapper.g-phase-risk .bar{fill:#FEF3C7}
 .gantt .bar-wrapper .bar-label{font-size:11px;fill:#fff;font-weight:600}
 .gantt .bar-wrapper .bar-label.big{fill:#475569}
+.today-line{stroke:#EF4444;stroke-width:1.5;stroke-dasharray:4,3;pointer-events:none}
+.today-label{fill:#EF4444;font-size:10px;font-weight:600;pointer-events:none}
 /* Phase 4 — Knowledge Base */
 .kb-layer-head{display:flex;align-items:baseline;gap:8px;margin:18px 0 10px}
 .kb-layer-title{font-size:14px;font-weight:700;color:#1E293B}
@@ -456,8 +459,9 @@ tr:hover td{background:#FAFAFA}
 /* ─── MODAL ─── */
 .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:500}
 .modal-overlay.visible{display:flex}
-.modal{background:#fff;border-radius:12px;padding:28px 32px;width:480px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
-.modal-title{font-size:16px;font-weight:700;color:#1E293B;margin-bottom:20px}
+.modal{background:#fff;border-radius:12px;width:480px;max-width:calc(100vw - 32px);max-height:calc(100vh - 64px);box-shadow:0 20px 60px rgba(0,0,0,.2);display:flex;flex-direction:column}
+.modal-title{font-size:16px;font-weight:700;color:#1E293B;padding:28px 32px 0;margin-bottom:20px;flex-shrink:0}
+#modal-body{padding:0 32px 4px;overflow-y:auto;flex:1 1 auto;min-height:0}
 .form-row{margin-bottom:16px}
 .form-label{font-size:12px;font-weight:600;color:#64748B;margin-bottom:6px;display:block}
 .form-input,.form-select,.form-textarea{width:100%;padding:9px 12px;border:1.5px solid #E2E8F0;border-radius:7px;font-size:13px;color:#1E293B;outline:none;transition:border-color .15s;font-family:inherit}
@@ -465,7 +469,7 @@ tr:hover td{background:#FAFAFA}
 .form-textarea{resize:vertical;min-height:72px}
 .form-row-split{display:flex;gap:12px}
 .form-row-split .form-row{flex:1;margin-bottom:0}
-.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;padding:20px 32px;margin-top:0;flex-shrink:0;border-top:1px solid #F1F5F9}
 .btn-secondary{padding:9px 18px;background:#F1F5F9;color:#64748B;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
 .btn-primary{padding:9px 18px;background:#1E293B;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
 .btn-primary:hover{background:#334155}
@@ -602,6 +606,8 @@ let phaseGanttView = 'Week';     // per-phase Gantt view mode
 let ganttMetric = 'completion';  // program bar fill: 'completion' | 'hours'
 let chatMessages = [];           // in-app assistant conversation [{role, content}]
 let chatBusy = false;
+let kbCache = null;               // { data, ts } — last successful /api/kb payload, shared by KB tab + chat context
+const KB_CACHE_TTL_MS = 5 * 60 * 1000;  // 5 min
 
 // ═══════════════════════════════════════════
 // PM OVERRIDES  (server-backed via /api/state, localStorage as offline cache)
@@ -815,6 +821,14 @@ function milestonesForView(phase) {
   const all = phase.milestones || [];
   if (subphase === 'all' || !isSplitPhase(phase)) return all;
   return all.filter(m => (m.subphaseId || 'shared') === subphase || (m.subphaseId || 'shared') === 'shared');
+}
+// Chronological (soonest-start-first) ordering, with completed items sunk to the bottom.
+function sortedMilestonesForView(phase) {
+  const dateKey = m => m.startDate || m.targetDate || '9999-12-31';
+  const all = milestonesForView(phase).slice();
+  const incomplete = all.filter(m => m.status !== 'complete').sort((a, b) => dateKey(a).localeCompare(dateKey(b)));
+  const complete = all.filter(m => m.status === 'complete').sort((a, b) => dateKey(a).localeCompare(dateKey(b)));
+  return [...incomplete, ...complete];
 }
 // Track badge label + css class for a milestone's subphaseId.
 function trackBadge(phase, subId) {
@@ -1189,6 +1203,7 @@ function initProgramGantt(phases) {
     on_date_change: role === 'full' ? (t, s, e) => savePhaseDatesFromGantt(t.id, s, e) : null
   });
   scrollGanttToStart(el);
+  drawTodayLine(el, tasks);
 }
 
 function setGanttMetric(m) { ganttMetric = m; renderTimeline(); }
@@ -1226,11 +1241,19 @@ async function kbFetch() {
   return r.json();
 }
 
+// Shared by the KB tab and the chat context builder — avoids re-hitting GitHub on every chat message.
+async function kbFetchCached() {
+  if (kbCache && (Date.now() - kbCache.ts) < KB_CACHE_TTL_MS) return kbCache.data;
+  const data = await kbFetch();
+  kbCache = { data, ts: Date.now() };
+  return data;
+}
+
 function renderKB() {
   const page = document.getElementById('page-kb');
   const head = '<div class="section-label">Project Knowledge Base</div>';
   page.innerHTML = head + '<div class="kb-note">Loading knowledge base…</div>';
-  kbFetch().then(data => {
+  kbFetchCached().then(data => {
     if (!data.layers || !data.layers.length) {
       page.innerHTML = head + '<div class="kb-note">No documents found in the knowledge base.</div>';
       return;
@@ -1277,7 +1300,7 @@ function toggleChat() {
 }
 
 // Compact summary of the current dashboard state — sent as grounding context.
-function buildChatContext() {
+async function buildChatContext() {
   const lines = [];
   lines.push(`Program: ${D.program.name} (client ${D.program.client}). Today: ${new Date().toISOString().slice(0, 10)}. Data as of ${fmtDate((D.lastUpdated || '').slice(0, 10))}.`);
   D.phases.forEach(p => {
@@ -1299,6 +1322,34 @@ function buildChatContext() {
       lines.push('  Staff: ' + p.staff.map(s => `${s.name} (${s.role}, ${fmt(s.hoursTotal || 0)}/${fmt(s.hoursAllocated || 0)}h)`).join('; '));
     }
   });
+
+  const o = getOverrides();
+  const changelogEntries = (o.changelog || []).slice(0, 25);
+  if (changelogEntries.length) {
+    lines.push('');
+    lines.push(`=== CHANGELOG (most recent ${changelogEntries.length}, newest first) ===`);
+    changelogEntries.forEach(e => {
+      const when = (e.ts || '').slice(0, 10);
+      const phaseLabel = D.phases.find(p => p.id === e.phaseId)?.name || e.phaseName || e.phaseId || 'Unknown phase';
+      const summary = (e.changes || []).map(c => `${c.label} ${c.from}→${c.to}`).join('; ');
+      lines.push(`  [${when}] ${phaseLabel}: ${summary}${e.note ? ' — note: "' + e.note + '"' : ''}`);
+    });
+  }
+
+  try {
+    const kb = await kbFetchCached();
+    if (kb && kb.layers && kb.layers.length) {
+      lines.push('');
+      lines.push(`=== KNOWLEDGE BASE (${kb.count} curated docs) ===`);
+      kb.layers.forEach(L => {
+        lines.push(`  ${L.label}:`);
+        L.docs.forEach(d => {
+          lines.push(`    - "${d.title}" [${d.status || 'no status'}]${d.owner ? ' owner: ' + d.owner : ''}${d.lastUpdated ? ' updated: ' + d.lastUpdated : ''} — ${d.summary || '(no summary)'} — ${d.url}`);
+        });
+      });
+    }
+  } catch (err) { /* KB not configured or no secret yet — omit section, don't fail the chat */ }
+
   return lines.join('\n');
 }
 
@@ -1329,7 +1380,7 @@ async function sendChat() {
   document.getElementById('chat-send').disabled = true;
   renderChatMessages();
   try {
-    const reply = await chatFetch(chatMessages, buildChatContext());
+    const reply = await chatFetch(chatMessages, await buildChatContext());
     chatMessages.push({ role: 'assistant', content: reply });
   } catch (e) {
     let msg;
@@ -1721,7 +1772,7 @@ function setTimelineSubView(v) {
 }
 
 function renderMilestonesPanel(phase) {
-  const milestones = milestonesForView(phase);
+  const milestones = sortedMilestonesForView(phase);
   const scoped = isSplitPhase(phase) && subphase !== 'all';
 
   let rows = milestones.length > 0
@@ -1782,7 +1833,7 @@ function renderMilestoneRow(m, phase) {
     trackTag = ` <span class="ms-track ${t.cls}">${t.label}</span>`;
   }
 
-  return `<tr>
+  return `<tr class="${m.status === 'complete' ? 'ms-row-complete' : ''}">
     <td><strong>${m.name}</strong>${trackTag}</td>
     <td><span class="ms-type">${m.type === 'milestone' ? 'Milestone' : 'Deliverable'}</span></td>
     <td>${timelineCell}</td>
@@ -1825,7 +1876,7 @@ function renderPhaseGanttPanel(phase) {
 function initPhaseGantt(phase) {
   const el = document.getElementById('phase-gantt');
   if (!el || typeof Gantt === 'undefined') return;
-  const dated = milestonesForView(phase).filter(m => m.targetDate);
+  const dated = sortedMilestonesForView(phase).filter(m => m.targetDate);
   if (!dated.length) return;
   const tasks = dated.map(m => {
     const ds = milestoneDateStatus(m, phase);
@@ -1851,6 +1902,7 @@ function initPhaseGantt(phase) {
     on_date_change: role === 'full' ? (t, s, e) => saveMilestoneDatesFromGantt(phase.id, t.id, s, e) : null
   });
   scrollGanttToStart(el);
+  drawTodayLine(el, tasks);
 }
 
 function setPhaseView(v) { phaseGanttView = v; if (selectedPhaseId) renderDetail(selectedPhaseId); }
@@ -2040,7 +2092,12 @@ function openEditMilestone(phaseId, milestoneId) {
 function buildMilestoneForm(m, phase) {
   const statuses = ['not_started','in_progress','complete','blocked'];
   const statusLabels = {'not_started':'Not Started','in_progress':'In Progress','complete':'Complete','blocked':'Blocked'};
-  const staff = (phase && phase.staff) || [];
+  const seenStaffIds = new Set();
+  const staff = ((phase && phase.staff) || []).filter(s => {
+    if (seenStaffIds.has(s.id)) return false;
+    seenStaffIds.add(s.id);
+    return true;
+  });
   const selected = new Set(m && Array.isArray(m.assigneeIds) ? m.assigneeIds : []);
   const assigneePicker = staff.length
     ? `<div class="assignee-pick">
@@ -2134,6 +2191,11 @@ function saveMilestone() {
     lastUpdated: now,
     airtableRecordId: existing ? (existing.airtableRecordId || null) : null
   };
+
+  if (newM.completionPct === 100 && newM.status !== 'complete' &&
+      confirm(`Mark "${newM.name}" as complete and close it out?`)) {
+    newM.status = 'complete';
+  }
 
   if (milestoneId) {
     const idx = phase.milestones.findIndex(m => m.id === milestoneId);
@@ -2462,6 +2524,43 @@ function scrollGanttToStart(el) {
     if (!bars.length) return;
     const minX = Math.min(...bars.map(b => parseFloat(b.getAttribute('x')) || 0));
     container.scrollLeft = Math.max(0, minX - 40);
+  });
+}
+// Draws a vertical "today" marker into the chart's svg. Uses the widest-span bar as a
+// date→pixel scale reference (frappe's date→x mapping is linear, so one reference suffices).
+function drawTodayLine(el, tasks) {
+  requestAnimationFrame(() => {
+    const svg = el.querySelector('svg');
+    const bars = [...el.querySelectorAll('.bar-wrapper .bar')];
+    if (!svg || !bars.length) return;
+    svg.querySelectorAll('.today-line, .today-label').forEach(n => n.remove());
+    const daysBetween = (a, b) => (new Date(toYMD(b) + 'T12:00:00Z') - new Date(toYMD(a) + 'T12:00:00Z')) / 86400000;
+    let ref = null, refSpan = -1;
+    bars.forEach((bar, i) => {
+      const t = tasks[i];
+      if (!t) return;
+      const span = daysBetween(t.start, t.end);
+      if (span > refSpan) { refSpan = span; ref = { bar, task: t }; }
+    });
+    if (!ref || refSpan <= 0) return;
+    const x = parseFloat(ref.bar.getAttribute('x')) || 0;
+    const width = parseFloat(ref.bar.getAttribute('width')) || 0;
+    const pxPerDay = width / refSpan;
+    const todayX = x + pxPerDay * daysBetween(ref.task.start, new Date());
+    const height = parseFloat(svg.getAttribute('height')) || svg.getBBox().height || 0;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('class', 'today-line');
+    line.setAttribute('x1', todayX); line.setAttribute('x2', todayX);
+    line.setAttribute('y1', 0); line.setAttribute('y2', height);
+    svg.appendChild(line);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('class', 'today-label');
+    label.setAttribute('x', todayX + 4);
+    label.setAttribute('y', 12);
+    label.textContent = 'Today';
+    svg.appendChild(label);
   });
 }
 function toYMD(d) {
