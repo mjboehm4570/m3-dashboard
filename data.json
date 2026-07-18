@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-17T12:01:38.906Z",
+  "lastUpdated": "2026-07-18T11:42:17.218Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -357,6 +357,54 @@
         },
         {
           "id": "kevinw",
+          "name": "Kevin W.",
+          "role": "Team Member",
+          "hoursThisWeek": 1,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 1,
+            "1b": 1
+          }
+        },
+        {
+          "id": "nicolas.crocco",
+          "name": "Nicolas C.",
+          "role": "Team Member",
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 0
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 13,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 13
+          }
+        },
+        {
+          "id": "kevin.white",
           "name": "Kevin W.",
           "role": "Team Member",
           "hoursThisWeek": 1,
