@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-18T11:42:17.218Z",
+  "lastUpdated": "2026-07-19T11:47:50.009Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 5,
       "budgetHours": 1765,
-      "usedHours": 185,
+      "usedHours": 178,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,7 +38,7 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 162,
+          "usedHours": 155,
           "weekHours": 1
         },
         {
@@ -104,10 +104,10 @@
           "name": "Tere G.",
           "role": "Product Designer",
           "hoursThisWeek": 12,
-          "hoursTotal": 53,
+          "hoursTotal": 46,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 52,
+            "1a": 46,
             "1b": 1
           },
           "subphaseWeekHours": {
@@ -357,6 +357,54 @@
         },
         {
           "id": "kevinw",
+          "name": "Kevin W.",
+          "role": "Team Member",
+          "hoursThisWeek": 1,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 1,
+            "1b": 1
+          }
+        },
+        {
+          "id": "nicolas.crocco",
+          "name": "Nicolas C.",
+          "role": "Team Member",
+          "hoursThisWeek": 0,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 0
+          }
+        },
+        {
+          "id": "rafael.torre",
+          "name": "Rafael T.",
+          "role": "Team Member",
+          "hoursThisWeek": 13,
+          "hoursTotal": 0,
+          "hoursAllocated": 0,
+          "subphaseHours": {
+            "1a": 0,
+            "1b": 0
+          },
+          "subphaseWeekHours": {
+            "1a": 0,
+            "1b": 13
+          }
+        },
+        {
+          "id": "kevin.white",
           "name": "Kevin W.",
           "role": "Team Member",
           "hoursThisWeek": 1,
