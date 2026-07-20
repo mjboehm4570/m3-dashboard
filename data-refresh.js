@@ -28,8 +28,10 @@ const DRY_RUN    = process.argv.includes('--dry-run');
 const DIAGNOSE   = process.argv.includes('--diagnose');
 const DATA_PATH  = path.join(__dirname, 'data.json');
 
-// Engagement start — used as the earliest after_date for all-time totals
-const ENGAGEMENT_START = '2026-06-09';
+// Engagement start — used as the earliest after_date for all-time totals.
+// First hour was actually charged 2026-05-20; the previous value (2026-06-09)
+// excluded ~3 weeks of real ProjectX entries from every all-time fetch below.
+const ENGAGEMENT_START = '2026-05-20';
 
 // Phase → ProjectX task ID(s)
 const PHASE_TASK_IDS = {
