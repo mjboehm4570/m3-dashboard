@@ -110,6 +110,15 @@ function apiGet(endpoint) {
   });
 }
 
+// ProjectX's stated page size (confirmed in production: a full page is
+// exactly this many entries). The API's own "total_pages" field has been
+// observed to under-report (e.g. reporting 1 while returning a full 50-item
+// page with more real data beyond it — see the 2026-07-20 "178 vs 400 hours"
+// investigation, where this silently dropped 70 of 120 real entries every
+// night). So total_pages is logged for visibility only and is NOT trusted as
+// the stop condition below.
+const API_PAGE_SIZE = 50;
+
 // Fetches all pages of a paginated endpoint, returning a flat array of entries.
 // ProjectX wraps responses in {"report": {"tracked_time_entries": [...], "total_pages": N}}
 // or {"report": {"users": [...], "total_pages": N}} for grouped endpoints.
@@ -130,15 +139,14 @@ async function fetchAllPages(baseEndpoint) {
 
     all.push(...entries);
 
-    const totalPages =
-      report.total_pages ||
-      data.total_pages   ||
-      report.pagination?.total_pages ||
-      1;
+    if (DIAGNOSE) {
+      const totalPages = report.total_pages || data.total_pages || report.pagination?.total_pages || 1;
+      console.log(`  page ${page} (API-reported total_pages: ${totalPages}), got ${entries.length} entries`);
+    }
 
-    if (DIAGNOSE) console.log(`  page ${page}/${totalPages}, got ${entries.length} entries`);
-
-    if (page >= totalPages || entries.length === 0) break;
+    // Stop once a page comes back short of a full page — the only pagination
+    // signal that can't lie about whether more data exists.
+    if (entries.length < API_PAGE_SIZE) break;
     page++;
   }
 
