@@ -64,6 +64,8 @@ const STAFF_NAME_TO_ID = {
   'Sarah Kovacs':      'sarak',     // ← confirm exact name once she logs
   'Ignacio Dominguez': 'ignaciod',  // confirmed — designer
   'Lucia Counago':     'luciac',    // confirmed — designer
+  'Rafael Torre':      'rafael.torre',   // ← confirm exact name — was falling through to auto-discovery every night, creating dupes (cleaned up 2026-07-16)
+  'Nicolas Crocco':    'nicolas.crocco', // ← confirm exact name — same issue
 };
 
 // ─── HTTP helper ────────────────────────────────────────────────────────────
@@ -226,6 +228,62 @@ async function main() {
     }
   }
 
+  // ── 5b. Daily burn history (backfill for the Burn & Pace chart) ───────────
+  // The exact per-entry date field hasn't been confirmed against production,
+  // so try the plausible candidates in order rather than hard-coding one.
+  function entryDateField(e) {
+    return e.date || e.tracked_on || e.tracked_date || e.performed_at || e.day || null;
+  }
+
+  if (DIAGNOSE && allEntries.length > 0) {
+    const dated = allEntries.filter(e => entryDateField(e));
+    console.log(`\n=== DIAGNOSE: Entry date field check — ${dated.length}/${allEntries.length} entries have a usable date ===`);
+  }
+
+  // Buckets this phase's entries into cumulative-to-date hours per calendar
+  // day from startDateStr through todayStr. If no entry carries a recognized
+  // date field, falls back to a single today-only point (chart then just
+  // accumulates forward one point per night instead of showing real history).
+  function buildDailyHistory(entries, taskIds, startDateStr, todayStr) {
+    const relevant = entries.filter(e => {
+      const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id ?? NULL_TASK_DEFAULT;
+      return taskIds.includes(taskId);
+    });
+
+    const hoursByDay = {};
+    let anyDated = false;
+    for (const e of relevant) {
+      const raw = entryDateField(e);
+      if (!raw) continue;
+      anyDated = true;
+      const d = String(raw).slice(0, 10);
+      hoursByDay[d] = (hoursByDay[d] || 0) + (e.duration || 0) / 60;
+    }
+
+    if (!anyDated) {
+      const totalUsed = Math.round(relevant.reduce((s, e) => s + (e.duration || 0) / 60, 0) * 10) / 10;
+      return [{ date: todayStr, usedHours: totalUsed }];
+    }
+
+    const points = [];
+    let running = 0;
+    for (let d = new Date(startDateStr + 'T00:00:00Z'); toDateStr(d) <= todayStr; d.setUTCDate(d.getUTCDate() + 1)) {
+      const ds = toDateStr(d);
+      running += hoursByDay[ds] || 0;
+      points.push({ date: ds, usedHours: Math.round(running * 10) / 10 });
+    }
+    return points;
+  }
+
+  // Upserts by date so a same-day re-run overwrites rather than duplicates,
+  // and back-logged ProjectX edits self-correct on the next nightly run
+  // (buildDailyHistory recomputes the whole series from allEntries every time).
+  function mergeHistory(existingHistory, newPoints) {
+    const byDate = new Map((existingHistory || []).map(p => [p.date, p]));
+    for (const p of newPoints) byDate.set(p.date, p);
+    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   // ── 6. Aggregate: hours by task ID + user (for subphase staff breakdown) ──
   // Shape: { 'Full Name': { taskId: hours, ... } }
   // User name from flat entries: user.full_name or "first_name last_name"
@@ -280,9 +338,14 @@ async function main() {
   // to the appropriate phase with default values (role: "Team Member", allocated: 0).
   // The PM updates role and allocation in the dashboard — no code change needed.
 
+  // Deterministic full-name slug — always the same for a given pxName string,
+  // so re-running on a later night resolves to the same id and existingStaffIds
+  // reliably blocks a duplicate push. (Previously this tried a short 6+1-char
+  // id first and only fell back to the slug on collision, which meant the same
+  // person could get a different id on different runs and each variant produced
+  // its own duplicate staff row — see 2026-07-16 dupe cleanup for Rafael/Nicolas.)
   function generateStaffId(fullName) {
-    const parts = fullName.toLowerCase().replace(/[^a-z ]/g, '').split(' ');
-    return (parts[0].slice(0, 6) + (parts[1] || '').slice(0, 1)).slice(0, 8);
+    return fullName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '');
   }
 
   function formatDisplayName(fullName) {
@@ -299,15 +362,15 @@ async function main() {
     // Skip if already mapped or already in data.json
     if (STAFF_NAME_TO_ID[pxName]) continue;
 
-    const newId = generateStaffId(pxName);
-    if (existingStaffIds.has(newId)) {
-      // ID collision: use full-name slug instead
-      const slug = pxName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '');
-      STAFF_NAME_TO_ID[pxName] = slug;
-    } else {
-      STAFF_NAME_TO_ID[pxName] = newId;
+    const candidateId = generateStaffId(pxName);
+    if (existingStaffIds.has(candidateId)) {
+      // Already added (this run or a prior one) — treat as the same person,
+      // don't push a duplicate staff record.
+      STAFF_NAME_TO_ID[pxName] = candidateId;
+      continue;
     }
-    existingStaffIds.add(STAFF_NAME_TO_ID[pxName]);
+    STAFF_NAME_TO_ID[pxName] = candidateId;
+    existingStaffIds.add(candidateId);
 
     // Find which phase this person logged against
     const userTaskIds = Object.keys(staffTaskAll[pxName] || {}).map(Number);
@@ -351,6 +414,9 @@ async function main() {
       ...phase,
       usedHours,
       elapsedWeeks: phase.startDate ? elapsedWeeks(phase.startDate) : phase.elapsedWeeks,
+      history: phase.startDate
+        ? mergeHistory(phase.history || [], buildDailyHistory(allEntries, taskIds, phase.startDate, TODAY))
+        : (phase.history || []),
     };
 
     // Subphase hours
@@ -433,7 +499,10 @@ async function main() {
   for (const p of updated.phases) {
     const budget = p.budgetHours || p.monthlyCapHours || '?';
     const pct    = p.budgetHours ? `${Math.round(p.usedHours / p.budgetHours * 100)}%` : '';
-    console.log(`  Phase ${p.number} (${p.state}): ${p.usedHours} / ${budget} hrs ${pct}`);
+    const hist   = (p.history && p.history.length)
+      ? `history: ${p.history.length} pt${p.history.length === 1 ? '' : 's'} (${p.history[0].date} → ${p.history[p.history.length - 1].date})`
+      : 'history: none';
+    console.log(`  Phase ${p.number} (${p.state}): ${p.usedHours} / ${budget} hrs ${pct} — ${hist}`);
   }
 
   // ── 10. Write or preview ──────────────────────────────────────────────────

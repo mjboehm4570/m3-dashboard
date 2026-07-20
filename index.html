@@ -594,7 +594,7 @@ let currentPage = 'overview';
 let selectedPhaseId = null;
 let subphase = 'all';         // active track lens in phase detail: 'all' | subphase id ('1a'/'1b')
 let detailTab = 'timeline';  // active section tab in phase detail: 'health'|'timeline'|'team'|'log'
-let timelineSubView = 'gantt'; // Timeline & Milestones sub-view: 'gantt'|'list'
+let timelineSubView = 'list'; // Timeline & Milestones sub-view: 'gantt'|'list'
 let editingMilestone = null;  // { phaseId, milestoneId }
 let editingStaff = null;      // { phaseId, staffId }
 let editingPhase = null;      // { phaseId }
@@ -604,6 +604,9 @@ let overridesCache = {};      // in-memory PM overrides (server-backed, localSto
 let programGanttView = 'Month';  // Timeline tab view mode
 let phaseGanttView = 'Week';     // per-phase Gantt view mode
 let ganttMetric = 'completion';  // program bar fill: 'completion' | 'hours'
+let burnChartWindow = 'all';      // Burn & Pace chart pace window: 'all' | 'recent'
+let scenario = null;              // ephemeral what-if, client-only: { extraHoursPerWeek, effectiveDate } | null
+let scenarioFormOpen = false;     // whether the what-if input row is expanded
 let chatMessages = [];           // in-app assistant conversation [{role, content}]
 let chatBusy = false;
 let kbCache = null;               // { data, ts } — last successful /api/kb payload, shared by KB tab + chat context
@@ -798,6 +801,8 @@ function goToPhase(phaseId) {
   selectedPhaseId = phaseId;
   subphase = 'all';
   detailTab = 'timeline';
+  scenario = null;
+  scenarioFormOpen = false;
   renderDetail(phaseId);
   const tab = document.getElementById('tab-detail');
   tab.style.display = '';
@@ -857,6 +862,59 @@ function weeksRemaining(phase) {
   const rate = weeklyBurnRate(phase);
   if (rate === 0) return null;
   return ((phase.budgetHours - phase.usedHours) / rate).toFixed(1);
+}
+
+// ─── Burn & Pace: history-based rate + projection helpers ───
+function todayYMD() { return new Date().toISOString().slice(0, 10); }
+
+// Slope over just the trailing window of phase.history, for the "Last 4 Weeks" pace toggle.
+// Falls back to the all-time weeklyBurnRate if there isn't enough recent history yet.
+function recentWeeklyBurnRate(phase, days = 28) {
+  const hist = phase.history || [];
+  if (hist.length < 2) return weeklyBurnRate(phase);
+  const cutoff = addDaysYMD(todayYMD(), -days);
+  const recentPts = hist.filter(p => p.date >= cutoff);
+  if (recentPts.length < 2) return weeklyBurnRate(phase);
+  const first = recentPts[0], last = recentPts[recentPts.length - 1];
+  const wks = (new Date(last.date) - new Date(first.date)) / 604800000;
+  if (wks <= 0) return weeklyBurnRate(phase);
+  return Math.round((last.usedHours - first.usedHours) / wks);
+}
+
+// The weekly rate driving the chart's projection, per the active pace-window toggle.
+function activeChartRate(phase) {
+  return burnChartWindow === 'recent' ? recentWeeklyBurnRate(phase) : weeklyBurnRate(phase);
+}
+
+// Date a given weekly rate would cross budgetHours, starting from fromDateYMD/fromUsedHours.
+function projectDepletionYMD(fromDateYMD, fromUsedHours, budgetHours, weeklyRate) {
+  if (!weeklyRate || weeklyRate <= 0) return null;
+  const daysNeeded = Math.round((budgetHours - fromUsedHours) / weeklyRate * 7);
+  return addDaysYMD(fromDateYMD, daysNeeded);
+}
+
+// Baseline projected completion date. In 'all' mode this reuses weeksRemaining directly
+// (same number already shown in the Forecasted Runway chip) rather than re-deriving it.
+function baseProjectedYMD(phase) {
+  const today = todayYMD();
+  if (burnChartWindow === 'all') {
+    const wr = weeksRemaining(phase);
+    return wr !== null ? addDaysYMD(today, Math.round(parseFloat(wr) * 7)) : null;
+  }
+  return projectDepletionYMD(today, phase.usedHours, phase.budgetHours, recentWeeklyBurnRate(phase));
+}
+
+// Ephemeral what-if projection: same pace up to the scenario's effective date, then
+// pace + extraHoursPerWeek from there. Pure function of current state — nothing persisted.
+function computeScenarioProjection(phase) {
+  if (!scenario) return null;
+  const today = todayYMD();
+  const rate = activeChartRate(phase);
+  const eff = scenario.effectiveDate < today ? today : scenario.effectiveDate;
+  const daysToEff = (new Date(eff) - new Date(today)) / 86400000;
+  const usedAtEff = phase.usedHours + rate / 7 * daysToEff;
+  const rate2 = rate + scenario.extraHoursPerWeek;
+  return { eff, usedAtEff, rate2, depletionYMD: projectDepletionYMD(eff, usedAtEff, phase.budgetHours, rate2) };
 }
 function phaseHealthState(phase) {
   if (phase.state !== 'active') return phase.state;
@@ -918,6 +976,7 @@ function renderOverview() {
     </div>
     ${renderKpiStrip(phases, activePhase, overdueTot, soonTot)}
     ${renderAttentionPanel(attnItems)}
+    ${renderPhaseAllocationPanel(phases)}
     <div class="section-label">Active Now</div>
     <div class="phase-grid">${renderActiveGroup(phases.filter(p => p.type !== 'retainer' && (p.state === 'active' || p.state === 'complete')))}</div>`;
 
@@ -928,6 +987,52 @@ function renderOverview() {
   }
 
   document.getElementById('page-overview').innerHTML = html;
+}
+
+// Program-wide allocation view: every budgeted phase side by side (not just the
+// active one), so under/over-budget phases are visible at a glance for reallocation.
+function renderPhaseAllocationPanel(phases) {
+  const rows = phases.filter(p => p.budgetHours);
+  if (!rows.length) return '';
+
+  const stateRank = { active: 0, upcoming: 1, complete: 2 };
+  rows.sort((a, b) => (stateRank[a.state] ?? 3) - (stateRank[b.state] ?? 3) || a.number - b.number);
+
+  const badgeMap = {
+    'on-track': ['badge-active', 'On Track'],
+    'at-risk': ['badge-at-risk', 'At Risk'],
+    'critical': ['badge-critical', 'Critical'],
+    'upcoming': ['badge-active', 'Upcoming'],
+    'complete': ['badge-active', 'Complete'],
+  };
+
+  return `
+    <div class="panel" style="margin-top:20px">
+      <div class="panel-header">
+        <span class="panel-title">Hours Allocation by Phase</span>
+      </div>
+      <div style="padding:6px 20px 16px">
+        ${rows.map(p => {
+          const used = p.usedHours || 0;
+          const budget = p.budgetHours;
+          const remaining = Math.max(budget - used, 0);
+          const pct = Math.min(used / budget * 100, 100);
+          const health = phaseHealthState(p);
+          const [badgeCls, badgeLabel] = badgeMap[health] || ['badge-active', health];
+          return `
+            <div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid #F1F5F9">
+              <div style="width:150px;flex-shrink:0">
+                <div style="font-size:13px;font-weight:600;color:#1E293B">Phase ${p.number}</div>
+                <div style="font-size:11px;color:#94A3B8">${p.name}</div>
+              </div>
+              <div class="gauge-track" style="flex:1"><div class="gauge-fill fill-burn" style="width:${pct}%"></div></div>
+              <div style="width:150px;text-align:right;font-size:12px;color:#475569;flex-shrink:0">${fmt(used)} / ${fmt(budget)} hrs</div>
+              <div style="width:90px;text-align:right;font-size:11px;color:#94A3B8;flex-shrink:0">${fmt(remaining)} left</div>
+              <span class="status-badge ${badgeCls}" style="flex-shrink:0">${badgeLabel}</span>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
 }
 
 // KPI strip — four program dimensions: schedule, delivery, hours, attention.
@@ -1213,7 +1318,7 @@ function initProgramGantt(phases) {
     on_click: t => goToPhase(t.id),
     on_date_change: role === 'full' ? (t, s, e) => savePhaseDatesFromGantt(t.id, s, e) : null
   });
-  scrollGanttToStart(el);
+  scrollGanttToStart(el, tasks);
   drawTodayLine(el, tasks);
 }
 
@@ -1638,7 +1743,7 @@ function renderActiveDetail(phase) {
   // ── Section tabs (declutter: one group of panels at a time) ──
   html += `
     <div class="subphase-tabs detail-tabs">
-      <button class="subtab ${detailTab==='health'?'active':''}" onclick="setDetailTab('health')">Health</button>
+      <button class="subtab ${detailTab==='health'?'active':''}" onclick="setDetailTab('health')">Burn &amp; Pace</button>
       <button class="subtab ${detailTab==='timeline'?'active':''}" onclick="setDetailTab('timeline')">Timeline &amp; Milestones</button>
       <button class="subtab full-only ${detailTab==='team'?'active':''}" onclick="setDetailTab('team')">Team</button>
       <button class="subtab full-only ${detailTab==='log'?'active':''}" onclick="setDetailTab('log')">Change Log</button>
@@ -1675,6 +1780,7 @@ function renderActiveDetail(phase) {
         <hr class="gauge-divider">
         <div class="${narrativeClass}">${narrative}</div>
       </div>`;
+    html += renderBurnChart(phase);
     html += renderAlertChips(phase, bp, tp, dp, bd, pg, wr, wbr);
     html += renderDeadlinesStrip(phase);
   } else if (tab === 'timeline') {
@@ -1871,6 +1977,157 @@ function renderMilestoneRow(m, phase) {
   </tr>`;
 }
 
+// ═══════════════════════════════════════════
+// BURN & PACE CHART (hand-rolled SVG — no charting library, matches the
+// Gantt's drawTodayLine/hand-built-gauge precedent already in this file)
+// ═══════════════════════════════════════════
+function renderBurnChart(phase) {
+  const hist = (phase.history && phase.history.length) ? phase.history : [{ date: phase.startDate, usedHours: 0 }];
+  const today = todayYMD();
+  const budget = phase.budgetHours;
+  const planned = phase.expectedEndDate;
+  const baseProjected = baseProjectedYMD(phase);
+  const scenarioProj = computeScenarioProjection(phase);
+
+  const ends = [planned, baseProjected, scenarioProj && scenarioProj.depletionYMD, today].filter(Boolean);
+  const domainStartMs = new Date(phase.startDate).getTime();
+  const domainEndMs = Math.max(...ends.map(d => new Date(d).getTime())) + 14 * 86400000;
+  const domainEnd = new Date(domainEndMs).toISOString().slice(0, 10);
+
+  const W = 680, H = 220, mL = 46, mT = 16, mR = 16, mB = 26;
+  const pW = W - mL - mR, pH = H - mT - mB;
+  const yMax = budget * 1.15;
+  const x = ymd => mL + ((new Date(ymd).getTime() - domainStartMs) / (domainEndMs - domainStartMs)) * pW;
+  const y = h => mT + pH - (Math.min(h, yMax) / yMax) * pH;
+  // Marker labels near either edge would clip with text-anchor="middle" — flip to start/end there.
+  const edgeAnchor = xp => xp > mL + pW - 55 ? 'end' : (xp < mL + 55 ? 'start' : 'middle');
+
+  const windowedHist = burnChartWindow === 'recent' ? hist.filter(p => p.date >= addDaysYMD(today, -28)) : hist;
+  const actualPts = (windowedHist.length ? windowedHist : hist).map(p => `${x(p.date).toFixed(1)},${y(p.usedHours).toFixed(1)}`).join(' ');
+  const lastPt = hist[hist.length - 1];
+
+  // Month tick labels across the domain
+  const ticks = [];
+  const tick0 = new Date(domainStartMs); tick0.setUTCDate(1);
+  for (let d = tick0; d.getTime() <= domainEndMs; d.setUTCMonth(d.getUTCMonth() + 1)) {
+    const ymd = d.toISOString().slice(0, 10);
+    if (new Date(ymd).getTime() >= domainStartMs) ticks.push(ymd);
+  }
+
+  let svg = '';
+  svg += `<line x1="${mL}" y1="${y(budget).toFixed(1)}" x2="${mL + pW}" y2="${y(budget).toFixed(1)}" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="2,3"/>`;
+  svg += `<text x="${mL}" y="${(y(budget) - 6).toFixed(1)}" text-anchor="start" font-size="10" fill="#94A3B8">Budget ${fmt(budget)}h</text>`;
+  svg += `<line x1="${mL}" y1="${y(0).toFixed(1)}" x2="${mL + pW}" y2="${y(0).toFixed(1)}" stroke="#CBD5E1" stroke-width="1"/>`;
+  ticks.forEach(ymd => {
+    svg += `<text x="${x(ymd).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#94A3B8">${new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US',{month:'short'})}</text>`;
+  });
+
+  if (planned) {
+    svg += `<line x1="${x(phase.startDate).toFixed(1)}" y1="${y(0).toFixed(1)}" x2="${x(planned).toFixed(1)}" y2="${y(budget).toFixed(1)}" stroke="#94A3B8" stroke-width="2" stroke-dasharray="5,4" fill="none"/>`;
+    svg += `<circle cx="${x(planned).toFixed(1)}" cy="${y(budget).toFixed(1)}" r="4" fill="#94A3B8"/>`;
+    svg += `<text x="${x(planned).toFixed(1)}" y="${(y(budget) - 10).toFixed(1)}" text-anchor="${edgeAnchor(x(planned))}" font-size="10" fill="#64748B">Planned ${fmtDateShort(planned)}</text>`;
+  }
+
+  svg += `<polyline points="${actualPts}" fill="none" stroke="#F87171" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  svg += `<circle cx="${x(lastPt.date).toFixed(1)}" cy="${y(lastPt.usedHours).toFixed(1)}" r="4" fill="#F87171"/>`;
+
+  svg += `<line x1="${x(today).toFixed(1)}" y1="${mT}" x2="${x(today).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="2,3"/>`;
+  svg += `<text x="${x(today).toFixed(1)}" y="${mT - 4}" text-anchor="middle" font-size="10" fill="#94A3B8">Today</text>`;
+
+  if (baseProjected) {
+    svg += `<line x1="${x(today).toFixed(1)}" y1="${y(lastPt.usedHours).toFixed(1)}" x2="${x(baseProjected).toFixed(1)}" y2="${y(budget).toFixed(1)}" stroke="#F87171" stroke-width="2" stroke-dasharray="5,4" fill="none"/>`;
+    svg += `<circle cx="${x(baseProjected).toFixed(1)}" cy="${y(budget).toFixed(1)}" r="4" fill="#F87171"/>`;
+    svg += `<text x="${x(baseProjected).toFixed(1)}" y="${(y(budget) + 18).toFixed(1)}" text-anchor="${edgeAnchor(x(baseProjected))}" font-size="10" fill="#EF4444">Projected ${fmtDateShort(baseProjected)}</text>`;
+  }
+
+  if (scenarioProj) {
+    const endYmd = scenarioProj.depletionYMD || domainEnd;
+    const endY = scenarioProj.depletionYMD ? y(budget) : y(Math.min(yMax, scenarioProj.usedAtEff));
+    svg += `<line x1="${x(scenarioProj.eff).toFixed(1)}" y1="${y(scenarioProj.usedAtEff).toFixed(1)}" x2="${x(endYmd).toFixed(1)}" y2="${endY.toFixed(1)}" stroke="#6366F1" stroke-width="2" stroke-dasharray="5,4" fill="none"/>`;
+    if (scenarioProj.depletionYMD) {
+      svg += `<circle cx="${x(scenarioProj.depletionYMD).toFixed(1)}" cy="${y(budget).toFixed(1)}" r="4" fill="#6366F1"/>`;
+      svg += `<text x="${x(scenarioProj.depletionYMD).toFixed(1)}" y="${(y(budget) + 32).toFixed(1)}" text-anchor="${edgeAnchor(x(scenarioProj.depletionYMD))}" font-size="10" fill="#6366F1">Scenario ${fmtDateShort(scenarioProj.depletionYMD)}</text>`;
+    }
+  }
+
+  const seg = (val, label) => `<button class="${burnChartWindow === val ? 'on' : ''}" onclick="setBurnChartWindow('${val}')">${label}</button>`;
+
+  return `
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Burn Trend &amp; Projection</span>
+        <div class="gantt-controls">
+          <div class="gseg">
+            ${seg('all', 'All')}
+            ${seg('recent', 'Last 4 Weeks')}
+          </div>
+        </div>
+      </div>
+      <div style="padding:14px 20px">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#64748B;margin-bottom:8px">
+          <span><span style="display:inline-block;width:14px;height:2px;background:#94A3B8;vertical-align:middle;margin-right:4px"></span>Ideal Pace</span>
+          <span><span style="display:inline-block;width:14px;height:2px;background:#F87171;vertical-align:middle;margin-right:4px"></span>Actual</span>
+          <span><span style="display:inline-block;width:14px;height:2px;background:#F87171;opacity:.5;vertical-align:middle;margin-right:4px"></span>Projected</span>
+          ${scenarioProj ? `<span><span style="display:inline-block;width:14px;height:2px;background:#6366F1;vertical-align:middle;margin-right:4px"></span>Scenario</span>` : ''}
+        </div>
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">${svg}</svg>
+      </div>
+      ${renderScenarioControl(phase)}
+    </div>`;
+}
+
+// Ephemeral, client-only what-if control — never persisted to overrides/Airtable.
+function renderScenarioControl(phase) {
+  if (!scenarioFormOpen && !scenario) {
+    return `<div style="padding:0 20px 14px"><button class="panel-toggle" onclick="toggleScenarioForm()">+ Add What-If</button></div>`;
+  }
+  const proj = scenario ? computeScenarioProjection(phase) : null;
+  const base = baseProjectedYMD(phase);
+  let summary = '';
+  if (scenario && proj) {
+    const deltaDays = proj.depletionYMD && base ? Math.round((new Date(proj.depletionYMD) - new Date(base)) / 86400000) : null;
+    const deplLabel = proj.depletionYMD ? fmtDateShort(proj.depletionYMD) : 'beyond chart range';
+    summary = `<div class="text-sm" style="margin-top:8px">
+      ${scenario.extraHoursPerWeek >= 0 ? '+' : ''}${scenario.extraHoursPerWeek} hrs/week from ${fmtDateShort(scenario.effectiveDate)}
+      &rarr; projected depletion ${base ? 'moves from ' + fmtDateShort(base) + ' to ' : 'lands at '}${deplLabel}
+      ${deltaDays !== null ? `(${Math.abs(deltaDays)} days ${deltaDays < 0 ? 'sooner' : 'later'})` : ''}
+    </div>`;
+  }
+  return `
+    <div style="padding:14px 20px;border-top:1px solid #F1F5F9">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+        <div>
+          <label class="text-sm text-muted" style="display:block;margin-bottom:4px">Extra hrs/week (negative to reduce)</label>
+          <input type="number" id="wi-hours" step="5" value="${scenario ? scenario.extraHoursPerWeek : 20}" style="width:120px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px">
+        </div>
+        <div>
+          <label class="text-sm text-muted" style="display:block;margin-bottom:4px">Starting</label>
+          <input type="date" id="wi-date" value="${scenario ? scenario.effectiveDate : addDaysYMD(todayYMD(), 14)}" style="padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px">
+        </div>
+        <button class="panel-toggle" onclick="applyScenario('${phase.id}')">Apply</button>
+        <button class="panel-toggle" onclick="clearScenario('${phase.id}')">Clear</button>
+      </div>
+      ${summary}
+    </div>`;
+}
+
+function setBurnChartWindow(v) { burnChartWindow = v; if (selectedPhaseId) renderDetail(selectedPhaseId); }
+function toggleScenarioForm() { scenarioFormOpen = !scenarioFormOpen; if (selectedPhaseId) renderDetail(selectedPhaseId); }
+function applyScenario(phaseId) {
+  const hrsEl = document.getElementById('wi-hours');
+  const dateEl = document.getElementById('wi-date');
+  const hrs = parseFloat(hrsEl && hrsEl.value);
+  const eff = dateEl && dateEl.value;
+  if (isNaN(hrs) || !eff) return;
+  scenario = { extraHoursPerWeek: hrs, effectiveDate: eff };
+  renderDetail(phaseId || selectedPhaseId);
+}
+function clearScenario(phaseId) {
+  scenario = null;
+  scenarioFormOpen = false;
+  renderDetail(phaseId || selectedPhaseId);
+}
+
 function renderPhaseGanttPanel(phase) {
   const dated = milestonesForView(phase).filter(m => m.targetDate);
   const seg = (val, cur, fn, label) => `<button class="${val === cur ? 'on' : ''}" onclick="${fn}('${val}')">${label}</button>`;
@@ -1922,7 +2179,7 @@ function initPhaseGantt(phase) {
     on_click: role === 'full' ? t => openEditMilestone(phase.id, t.id) : null,
     on_date_change: role === 'full' ? (t, s, e) => saveMilestoneDatesFromGantt(phase.id, t.id, s, e) : null
   });
-  scrollGanttToStart(el);
+  scrollGanttToStart(el, tasks);
   drawTodayLine(el, tasks);
 }
 
@@ -2570,16 +2827,35 @@ function milestoneOwners(m, phase) {
 }
 
 // ─── Phase 3: Gantt date helpers ───
-// frappe pads the chart start by ~1 month; scroll so the earliest bar sits near the left edge.
-function scrollGanttToStart(el) {
+// frappe pads the chart start by ~1 month; scroll so 1 week before today sits at the left edge.
+function scrollGanttToStart(el, tasks) {
   // frappe wraps the svg in its own `.gantt-container` (the actual scroll element).
   // Defer to after layout so it's scrollable (scrollLeft clamps to 0 pre-layout).
   requestAnimationFrame(() => {
     const container = el.querySelector('.gantt-container') || el;
     const bars = [...el.querySelectorAll('.bar-wrapper .bar')];
     if (!bars.length) return;
-    const minX = Math.min(...bars.map(b => parseFloat(b.getAttribute('x')) || 0));
-    container.scrollLeft = Math.max(0, minX - 40);
+    if (!tasks || !tasks.length) {
+      const minX = Math.min(...bars.map(b => parseFloat(b.getAttribute('x')) || 0));
+      container.scrollLeft = Math.max(0, minX - 40);
+      return;
+    }
+    const daysBetween = (a, b) => (new Date(toYMD(b) + 'T12:00:00Z') - new Date(toYMD(a) + 'T12:00:00Z')) / 86400000;
+    let ref = null, refSpan = -1;
+    bars.forEach((bar, i) => {
+      const t = tasks[i];
+      if (!t) return;
+      const span = daysBetween(t.start, t.end);
+      if (span > refSpan) { refSpan = span; ref = { bar, task: t }; }
+    });
+    if (!ref || refSpan <= 0) return;
+    const x = parseFloat(ref.bar.getAttribute('x')) || 0;
+    const width = parseFloat(ref.bar.getAttribute('width')) || 0;
+    const pxPerDay = width / refSpan;
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const targetX = x + pxPerDay * daysBetween(ref.task.start, weekAgo);
+    container.scrollLeft = Math.max(0, targetX);
   });
 }
 // Draws a vertical "today" marker into the chart's svg. Uses the widest-span bar as a

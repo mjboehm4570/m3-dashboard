@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8137"],
       "port": 8137
+    },
+    {
+      "name": "m3-static-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8931"],
+      "port": 8931
     }
   ]
 }
