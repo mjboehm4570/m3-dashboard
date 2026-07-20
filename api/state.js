@@ -102,9 +102,21 @@ async function buildOverrides() {
   ]);
   const o = {};
 
+  // Guard against duplicate Airtable rows sharing a (phaseId, milestoneId) key
+  // (e.g. a manual edit, a whitespace/casing mismatch that defeated the
+  // upsert's fieldsToMergeOn, or a masked upsert failure) — keep only the
+  // most-recently-updated row per key rather than surfacing every duplicate.
+  const milestoneByKey = new Map();
   ms.forEach(rec => {
     const f = rec.fields;
     if (!f.phaseId || !f.milestoneId) return;
+    const dedupeKey = f.phaseId + '::' + f.milestoneId;
+    const existingRec = milestoneByKey.get(dedupeKey);
+    if (existingRec && (existingRec.fields.lastUpdated || '') > (f.lastUpdated || '')) return;
+    milestoneByKey.set(dedupeKey, rec);
+  });
+  milestoneByKey.forEach(rec => {
+    const f = rec.fields;
     const key = f.phaseId + '.milestones';
     (o[key] = o[key] || []).push({
       id: f.milestoneId,
@@ -193,7 +205,10 @@ async function applyOp(body) {
     } catch (e) {
       // Tolerate an Airtable base that doesn't have the newer subphaseId column yet:
       // strip it and retry so milestone saves never hard-fail on a missing field.
-      if (/Unknown field name|UNKNOWN_FIELD_NAME|422/.test(e.message) && records.some(r => 'subphaseId' in r.fields)) {
+      // Matched narrowly to "unknown field" only — a bare 422 could also mean
+      // "multiple records match fieldsToMergeOn" (duplicate rows already in the
+      // base), which this retry would not fix and should instead propagate.
+      if (/Unknown field name|UNKNOWN_FIELD_NAME/.test(e.message) && records.some(r => 'subphaseId' in r.fields)) {
         records.forEach(r => { delete r.fields.subphaseId; });
         await airUpsert(T.milestones, ['phaseId', 'milestoneId'], records);
       } else {

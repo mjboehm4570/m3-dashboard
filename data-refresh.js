@@ -68,6 +68,20 @@ const STAFF_NAME_TO_ID = {
   'Nicolas Crocco':    'nicolas.crocco', // ← confirm exact name — same issue
 };
 
+// Case/whitespace/accent-insensitive key for matching ProjectX full_name values —
+// a name that only differs by case, stray whitespace, or diacritics (e.g. "José"
+// vs "Jose") should resolve to the same person instead of silently minting a
+// second staffId via auto-discovery.
+function normalizeName(fullName) {
+  return fullName
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+const NORMALIZED_STAFF_NAME_TO_ID = Object.fromEntries(
+  Object.entries(STAFF_NAME_TO_ID).map(([name, id]) => [normalizeName(name), id])
+);
+
 // ─── HTTP helper ────────────────────────────────────────────────────────────
 
 function apiGet(endpoint) {
@@ -228,6 +242,30 @@ async function main() {
     }
   }
 
+  // ── 5c. Surface hours logged against task IDs no phase claims ─────────────
+  // usedHours below only sums each phase's own PHASE_TASK_IDS entry, so any
+  // task ID not listed there (e.g. an internal/admin task never mapped) is
+  // silently counted in zero phase totals. Make that gap visible instead of
+  // silent, so a project-total vs. dashboard-total mismatch is diagnosable
+  // from data.json without re-running --diagnose against ProjectX by hand.
+  const ALL_MAPPED_TASK_IDS = new Set(Object.values(PHASE_TASK_IDS).flat());
+  const unmappedTaskIds = Object.keys(taskHoursAll)
+    .map(Number)
+    .filter(tid => !ALL_MAPPED_TASK_IDS.has(tid));
+  const unmappedHours = Math.round(
+    unmappedTaskIds.reduce((s, tid) => s + (taskHoursAll[tid] || 0), 0) * 10
+  ) / 10;
+
+  if (unmappedTaskIds.length) {
+    console.warn(
+      `[data-refresh] ⚠ ${unmappedHours} hours logged against task ID(s) [${unmappedTaskIds.join(', ')}] ` +
+      `are not mapped to any phase in PHASE_TASK_IDS — these hours are NOT included in any phase total. ` +
+      `Add them to PHASE_TASK_IDS if they belong to a phase, or confirm they're expected non-phase overhead.`
+    );
+  } else {
+    console.log('[data-refresh] All logged task IDs are mapped to a phase — no hours are being dropped.');
+  }
+
   // ── 5b. Daily burn history (backfill for the Burn & Pace chart) ───────────
   // The exact per-entry date field hasn't been confirmed against production,
   // so try the plausible candidates in order rather than hard-coding one.
@@ -294,14 +332,27 @@ async function main() {
       || null;
   }
 
+  // Maps a normalized name back to the first raw spelling seen, so name-spelling
+  // variants of the same person (case/whitespace/accent differences) aggregate
+  // into one bucket instead of silently splitting a person's hours in two —
+  // this must key aggregation the same way STAFF_NAME_TO_ID resolution does,
+  // or a shared staffId still only picks up one variant's hours.
+  const displayNameByNormalized = {};
+  function trackDisplayName(rawName) {
+    const key = normalizeName(rawName);
+    if (!displayNameByNormalized[key]) displayNameByNormalized[key] = rawName;
+    return key;
+  }
+
   function staffTaskHoursFromEntries(entries) {
     const byUserTask = {};
     for (const e of entries) {
       const name   = fullNameFromEntry(e);
       const taskId = e.task?.id ?? e.task_id ?? e.task?.task_id ?? NULL_TASK_DEFAULT;
       if (!name) continue;
-      if (!byUserTask[name]) byUserTask[name] = {};
-      byUserTask[name][taskId] = (byUserTask[name][taskId] || 0) + (e.duration || 0) / 60;
+      const key = trackDisplayName(name);
+      if (!byUserTask[key]) byUserTask[key] = {};
+      byUserTask[key][taskId] = (byUserTask[key][taskId] || 0) + (e.duration || 0) / 60;
     }
     return byUserTask;
   }
@@ -322,7 +373,8 @@ async function main() {
       const hours = u.time_entries
         ? u.time_entries.reduce((s, e) => s + (e.duration || 0), 0) / 60
         : (u.total_duration ?? u.duration ?? 0) / 60;
-      byName[name] = (byName[name] || 0) + hours;
+      const key = trackDisplayName(name);
+      byName[key] = (byName[key] || 0) + hours;
     }
     return byName;
   }
@@ -331,7 +383,10 @@ async function main() {
   const staffTotalsWeek = staffTotalHours(staffThisWeek);
 
   const foundUsers = Object.keys(staffTotalsAll);
-  console.log(`[data-refresh] ProjectX users found (${foundUsers.length}):`, foundUsers.join(', ') || '(none)');
+  console.log(
+    `[data-refresh] ProjectX users found (${foundUsers.length}):`,
+    foundUsers.map(k => displayNameByNormalized[k] || k).join(', ') || '(none)'
+  );
 
   // ── 7b. Auto-discover new staff members ───────────────────────────────────
   // Any ProjectX user not yet in STAFF_NAME_TO_ID or data.json is auto-added
@@ -345,7 +400,7 @@ async function main() {
   // person could get a different id on different runs and each variant produced
   // its own duplicate staff row — see 2026-07-16 dupe cleanup for Rafael/Nicolas.)
   function generateStaffId(fullName) {
-    return fullName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z.]/g, '');
+    return normalizeName(fullName).replace(/\s+/g, '.').replace(/[^a-z.]/g, '');
   }
 
   function formatDisplayName(fullName) {
@@ -359,17 +414,19 @@ async function main() {
   );
 
   for (const pxName of foundUsers) {
-    // Skip if already mapped or already in data.json
-    if (STAFF_NAME_TO_ID[pxName]) continue;
+    // pxName here is already normalizeName()'d (it's a key of staffTotalsAll).
+    // Skip if already mapped, case/whitespace/accent-insensitively.
+    if (NORMALIZED_STAFF_NAME_TO_ID[pxName]) continue;
 
-    const candidateId = generateStaffId(pxName);
+    const rawName = displayNameByNormalized[pxName] || pxName;
+    const candidateId = generateStaffId(rawName);
     if (existingStaffIds.has(candidateId)) {
       // Already added (this run or a prior one) — treat as the same person,
       // don't push a duplicate staff record.
-      STAFF_NAME_TO_ID[pxName] = candidateId;
+      NORMALIZED_STAFF_NAME_TO_ID[pxName] = candidateId;
       continue;
     }
-    STAFF_NAME_TO_ID[pxName] = candidateId;
+    NORMALIZED_STAFF_NAME_TO_ID[pxName] = candidateId;
     existingStaffIds.add(candidateId);
 
     // Find which phase this person logged against
@@ -387,8 +444,8 @@ async function main() {
     );
 
     targetPhase.staff.push({
-      id:   STAFF_NAME_TO_ID[pxName],
-      name: formatDisplayName(pxName),
+      id:   NORMALIZED_STAFF_NAME_TO_ID[pxName],
+      name: formatDisplayName(rawName),
       role: 'Team Member',   // PM: update role in dashboard
       hoursThisWeek:    0,
       hoursTotal:       0,
@@ -397,13 +454,15 @@ async function main() {
       subphaseWeekHours: { ...subphaseHoursDefaults },
     });
 
-    console.log(`[data-refresh] ✨ Auto-added new staff: ${pxName} → id "${STAFF_NAME_TO_ID[pxName]}" on ${targetPhaseId}`);
+    console.log(`[data-refresh] ✨ Auto-added new staff: ${rawName} → id "${NORMALIZED_STAFF_NAME_TO_ID[pxName]}" on ${targetPhaseId}`);
   }
 
   // ── 8. Patch each phase ───────────────────────────────────────────────────
   const updated = {
     ...existing,
     lastUpdated: new Date().toISOString(),
+    unmappedHours,
+    unmappedTaskIds,
   };
 
   updated.phases = existing.phases.map(phase => {
@@ -428,11 +487,13 @@ async function main() {
       }));
     }
 
-    // Staff hours — match by name using STAFF_NAME_TO_ID
+    // Staff hours — match by name using NORMALIZED_STAFF_NAME_TO_ID. All the
+    // name-keyed aggregation maps (staffTaskAll/Week, staffTotalsAll/Week) are
+    // keyed by normalizeName() output, so pxName below is a normalized key too.
     if (phase.staff?.length) {
       patchedPhase.staff = phase.staff.map(s => {
         // Find the ProjectX name that maps to this staff ID
-        const pxName = Object.entries(STAFF_NAME_TO_ID).find(([, id]) => id === s.id)?.[0];
+        const pxName = Object.entries(NORMALIZED_STAFF_NAME_TO_ID).find(([, id]) => id === s.id)?.[0];
 
         // Fall back to fuzzy first-name match if exact mapping not found —
         // OR if the exact mapping's name has zero data anywhere in this pull,
@@ -441,7 +502,7 @@ async function main() {
         // not that they've genuinely never logged an hour.
         const findByFirstName = (nameMap) =>
           Object.entries(nameMap).find(([name]) =>
-            name.toLowerCase().startsWith(s.name.toLowerCase().split(' ')[0].toLowerCase())
+            name.startsWith(normalizeName(s.name).split(' ')[0])
           );
 
         const hasAnyData = (name) =>
@@ -503,6 +564,9 @@ async function main() {
       ? `history: ${p.history.length} pt${p.history.length === 1 ? '' : 's'} (${p.history[0].date} → ${p.history[p.history.length - 1].date})`
       : 'history: none';
     console.log(`  Phase ${p.number} (${p.state}): ${p.usedHours} / ${budget} hrs ${pct} — ${hist}`);
+  }
+  if (unmappedTaskIds.length) {
+    console.log(`  ⚠ Unmapped: ${unmappedHours} hrs across task ID(s) [${unmappedTaskIds.join(', ')}] — not in any phase total above.`);
   }
 
   // ── 10. Write or preview ──────────────────────────────────────────────────

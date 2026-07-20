@@ -267,6 +267,7 @@ body[data-role="full"] .team-only{display:none!important}
 .chip-blue{background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8}
 .chip-gray{background:#F8FAFC;border:1px solid #E2E8F0;color:#64748B}
 .chip-icon{font-size:16px}
+.sync-toast{position:fixed;bottom:20px;right:20px;z-index:9999;max-width:320px;box-shadow:0 4px 16px rgba(0,0,0,.12)}
 .chip-title{font-weight:700;font-size:12px}
 .chip-sub{font-size:11px;opacity:.8;margin-top:1px}
 
@@ -670,7 +671,19 @@ async function remoteSave(op, payload) {
     if (!r.ok && r.status !== 503) throw new Error(r.status);
   } catch (e) {
     console.warn('Edit saved locally but not synced to the shared database:', e.message || e);
+    showSyncWarning('Edit saved locally, but couldn\'t sync to the shared database. Other devices won\'t see it yet.');
   }
+}
+
+// A sync failure is silent otherwise (console.warn only) — surface it so a
+// broken Airtable sync doesn't go unnoticed for an extended period.
+function showSyncWarning(message) {
+  document.querySelectorAll('.sync-toast').forEach(el => el.remove());
+  const el = document.createElement('div');
+  el.className = 'alert-chip chip-red sync-toast';
+  el.innerHTML = `<span class="chip-icon">⚠️</span><span>${message}</span>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 8000);
 }
 function applyOverrides(data) {
   const o = getOverrides();
@@ -1252,6 +1265,18 @@ function uniqueOwners(phase, milestones) {
   return out;
 }
 
+// Dedup a phase's staff list by id, preserving order (guards the Team tab
+// against a stale duplicate staff record, e.g. from a ProjectX name-matching
+// mismatch upstream).
+function dedupStaffById(staff) {
+  const seen = new Set();
+  return (staff || []).filter(s => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+}
+
 // ═══════════════════════════════════════════
 // TIMELINE (program-level Gantt)
 // ═══════════════════════════════════════════
@@ -1813,7 +1838,7 @@ function renderActiveDetail(phase) {
               </tr>
             </thead>
             <tbody id="staff-tbody">
-              ${phase.staff.map(s => renderStaffRow(s, phase)).join('')}
+              ${dedupStaffById(phase.staff).map(s => renderStaffRow(s, phase)).join('')}
             </tbody>
           </table>
         </div>`;
@@ -2238,7 +2263,7 @@ function renderAssignmentRollup(phase) {
   const milestones = milestonesForView(phase);
   if (!milestones.length) return '';
   const rows = [];
-  (phase.staff || []).forEach(s => {
+  dedupStaffById(phase.staff).forEach(s => {
     const assigned = milestones.filter(m => (m.assigneeIds || []).includes(s.id));
     if (!assigned.length) return;
     const complete = assigned.filter(m => m.status === 'complete').length;
