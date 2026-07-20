@@ -8,6 +8,11 @@ on:
 
   # Allow manual trigger from GitHub Actions UI
   workflow_dispatch:
+    inputs:
+      diagnose:
+        description: 'Run with --diagnose (verbose API/pagination logging, no write)'
+        type: boolean
+        default: false
 
 jobs:
   refresh:
@@ -27,7 +32,7 @@ jobs:
       - name: Run data refresh
         env:
           PROJECTX_API_KEY: ${{ secrets.PROJECTX_API_KEY }}
-        run: node data-refresh.js
+        run: node data-refresh.js ${{ inputs.diagnose && '--diagnose --dry-run' || '' }}
 
       - name: Commit updated data.json
         run: |
