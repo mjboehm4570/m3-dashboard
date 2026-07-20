@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-20T12:59:35.683Z",
+  "lastUpdated": "2026-07-20T18:41:30.968Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 5,
       "budgetHours": 1765,
-      "usedHours": 178,
+      "usedHours": 185,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,7 +38,7 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 155,
+          "usedHours": 162,
           "weekHours": 0
         },
         {
@@ -47,7 +47,7 @@
           "name": "Discovery Raivan",
           "label": "1B",
           "usedHours": 23,
-          "weekHours": 0
+          "weekHours": 1
         }
       ],
       "staff": [
@@ -87,7 +87,7 @@
           "id": "kevinm",
           "name": "Kevin M.",
           "role": "UX Design Lead",
-          "hoursThisWeek": 0,
+          "hoursThisWeek": 1,
           "hoursTotal": 0,
           "hoursAllocated": 350,
           "subphaseHours": {
@@ -104,10 +104,10 @@
           "name": "Tere G.",
           "role": "Product Designer",
           "hoursThisWeek": 0,
-          "hoursTotal": 46,
+          "hoursTotal": 53,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 46,
+            "1a": 52,
             "1b": 1
           },
           "subphaseWeekHours": {
@@ -215,7 +215,7 @@
           "id": "kevin.white",
           "name": "Kevin W.",
           "role": "Team Member",
-          "hoursThisWeek": 0,
+          "hoursThisWeek": 1,
           "hoursTotal": 0,
           "hoursAllocated": 0,
           "subphaseHours": {
@@ -295,6 +295,176 @@
           "lastUpdated": "2026-07-07T00:00:00Z",
           "airtableRecordId": null
         }
+      ],
+      "history": [
+        {
+          "date": "2026-06-09",
+          "usedHours": 7
+        },
+        {
+          "date": "2026-06-10",
+          "usedHours": 15
+        },
+        {
+          "date": "2026-06-11",
+          "usedHours": 27
+        },
+        {
+          "date": "2026-06-12",
+          "usedHours": 59
+        },
+        {
+          "date": "2026-06-13",
+          "usedHours": 59
+        },
+        {
+          "date": "2026-06-14",
+          "usedHours": 59
+        },
+        {
+          "date": "2026-06-15",
+          "usedHours": 66.5
+        },
+        {
+          "date": "2026-06-16",
+          "usedHours": 76
+        },
+        {
+          "date": "2026-06-17",
+          "usedHours": 87
+        },
+        {
+          "date": "2026-06-18",
+          "usedHours": 94.5
+        },
+        {
+          "date": "2026-06-19",
+          "usedHours": 100.5
+        },
+        {
+          "date": "2026-06-20",
+          "usedHours": 100.5
+        },
+        {
+          "date": "2026-06-21",
+          "usedHours": 100.5
+        },
+        {
+          "date": "2026-06-22",
+          "usedHours": 109.5
+        },
+        {
+          "date": "2026-06-23",
+          "usedHours": 121.5
+        },
+        {
+          "date": "2026-06-24",
+          "usedHours": 134
+        },
+        {
+          "date": "2026-06-25",
+          "usedHours": 144
+        },
+        {
+          "date": "2026-06-26",
+          "usedHours": 154
+        },
+        {
+          "date": "2026-06-27",
+          "usedHours": 154
+        },
+        {
+          "date": "2026-06-28",
+          "usedHours": 154
+        },
+        {
+          "date": "2026-06-29",
+          "usedHours": 164
+        },
+        {
+          "date": "2026-06-30",
+          "usedHours": 176.5
+        },
+        {
+          "date": "2026-07-01",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-02",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-03",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-04",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-05",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-06",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-07",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-08",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-09",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-10",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-11",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-12",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-13",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-14",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-15",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-16",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-17",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-18",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-19",
+          "usedHours": 184.5
+        },
+        {
+          "date": "2026-07-20",
+          "usedHours": 184.5
+        }
       ]
     },
     {
@@ -325,7 +495,8 @@
       },
       "subphases": [],
       "staff": [],
-      "milestones": []
+      "milestones": [],
+      "history": []
     },
     {
       "id": "phase3",
@@ -355,7 +526,8 @@
       },
       "subphases": [],
       "staff": [],
-      "milestones": []
+      "milestones": [],
+      "history": []
     },
     {
       "id": "phase4",
@@ -385,7 +557,8 @@
       },
       "subphases": [],
       "staff": [],
-      "milestones": []
+      "milestones": [],
+      "history": []
     },
     {
       "id": "phase5",
@@ -409,5 +582,7 @@
       "milestones": [],
       "usedHours": 0
     }
-  ]
+  ],
+  "unmappedHours": 0,
+  "unmappedTaskIds": []
 }
