@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-20T19:14:27.570Z",
+  "lastUpdated": "2026-07-21T12:17:40.422Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -20,9 +20,9 @@
       "startDate": "2026-06-09",
       "expectedEndDate": "2026-09-05",
       "totalWeeks": 14,
-      "elapsedWeeks": 5,
+      "elapsedWeeks": 6,
       "budgetHours": 1765,
-      "usedHours": 370,
+      "usedHours": 372,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,7 +38,7 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 284,
+          "usedHours": 286,
           "weekHours": 0
         },
         {
@@ -47,7 +47,7 @@
           "name": "Discovery Raivan",
           "label": "1B",
           "usedHours": 86,
-          "weekHours": 1
+          "weekHours": 4
         }
       ],
       "staff": [
@@ -88,10 +88,10 @@
           "name": "Kevin M.",
           "role": "UX Design Lead",
           "hoursThisWeek": 1,
-          "hoursTotal": 41,
+          "hoursTotal": 43,
           "hoursAllocated": 350,
           "subphaseHours": {
-            "1a": 23,
+            "1a": 25,
             "1b": 19
           },
           "subphaseWeekHours": {
@@ -103,16 +103,16 @@
           "id": "tereg",
           "name": "Tere G.",
           "role": "Product Designer",
-          "hoursThisWeek": 0,
-          "hoursTotal": 97,
+          "hoursThisWeek": 4,
+          "hoursTotal": 101,
           "hoursAllocated": 315,
           "subphaseHours": {
             "1a": 85,
-            "1b": 12
+            "1b": 16
           },
           "subphaseWeekHours": {
             "1a": 7,
-            "1b": 12
+            "1b": 4
           }
         },
         {
@@ -184,11 +184,11 @@
           "name": "Rafael T.",
           "role": "Team Member",
           "hoursThisWeek": 0,
-          "hoursTotal": 23,
+          "hoursTotal": 19,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
-            "1b": 23
+            "1b": 19
           },
           "subphaseWeekHours": {
             "1a": 0,
@@ -216,10 +216,10 @@
           "name": "Kevin W.",
           "role": "Team Member",
           "hoursThisWeek": 1,
-          "hoursTotal": 41,
+          "hoursTotal": 43,
           "hoursAllocated": 0,
           "subphaseHours": {
-            "1a": 23,
+            "1a": 25,
             "1b": 19
           },
           "subphaseWeekHours": {
@@ -431,55 +431,59 @@
         },
         {
           "date": "2026-07-08",
-          "usedHours": 242.3
+          "usedHours": 244.3
         },
         {
           "date": "2026-07-09",
-          "usedHours": 248.3
+          "usedHours": 250.3
         },
         {
           "date": "2026-07-10",
-          "usedHours": 251.3
+          "usedHours": 253.3
         },
         {
           "date": "2026-07-11",
-          "usedHours": 251.3
+          "usedHours": 253.3
         },
         {
           "date": "2026-07-12",
-          "usedHours": 251.3
+          "usedHours": 253.3
         },
         {
           "date": "2026-07-13",
-          "usedHours": 255.3
+          "usedHours": 257.3
         },
         {
           "date": "2026-07-14",
-          "usedHours": 269.8
+          "usedHours": 271.8
         },
         {
           "date": "2026-07-15",
-          "usedHours": 284.3
+          "usedHours": 286.3
         },
         {
           "date": "2026-07-16",
-          "usedHours": 292.8
+          "usedHours": 290.8
         },
         {
           "date": "2026-07-17",
-          "usedHours": 296.8
+          "usedHours": 294.8
         },
         {
           "date": "2026-07-18",
-          "usedHours": 296.8
+          "usedHours": 294.8
         },
         {
           "date": "2026-07-19",
-          "usedHours": 296.8
+          "usedHours": 294.8
         },
         {
           "date": "2026-07-20",
-          "usedHours": 297.3
+          "usedHours": 295.3
+        },
+        {
+          "date": "2026-07-21",
+          "usedHours": 298.8
         }
       ]
     },
