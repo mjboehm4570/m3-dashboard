@@ -1,0 +1,412 @@
+{
+  "_meta": {
+    "schema": "DB-DOS-BET-Schema.md v0.1",
+    "generatedFrom": "m3-knowledge-base (layer-0 business PRD/SOW = contract scope; layer-1 product = team working scope)",
+    "lifecycleNote": "All features are lifecycleState=draft: KB provides scope, not the feature-by-feature hour breakdown (that is produced at the BET-lock exercise). Estimates are intentionally null.",
+    "notes": [
+      "ALF (Unified Intelligence Layer) is modeled as a Build — it is tracked as Phase 2 (Platform Fabric) in the project tracker. Phase 1 Structured Discovery (~1650h) and Phase 5 ongoing retainer are not seeded as builds.",
+      "Estimate provenance: the per-phase hour totals (VetLeo 3333, Raivan 10000, ALF 5000) are the SALES-PROCESS feasibility estimates — i.e., the Draft/Tollgate-1 numbers. That estimation step happened outside the system; here they seed each build's budget envelope.",
+      "Reconciliation examples are included: one unplanned contract-scope item (DSO/multi-location) and team-added features (e.g., social bill-splitting) with empty contractScopeRefs."
+    ]
+  },
+
+  "client": {
+    "id": "m3",
+    "name": "M3 Veterinary Innovation Advisors",
+    "legalEntity": "M3 Veterinary Innovation Advisors LLC (Texas)",
+    "hubspotDealId": null
+  },
+
+  "contract": {
+    "id": "m3-sow-2026",
+    "clientId": "m3",
+    "name": "M3 Unified Veterinary Intelligence Platform — SOW (Phases 1–5)",
+    "contractType": "project-based",
+    "status": "active",
+    "budget": {
+      "model": "range",
+      "currency": "hours",
+      "lowHours": 20000,
+      "highHours": null,
+      "committedHours": null
+    },
+    "startDate": null,
+    "endDate": null,
+    "projectXProjectId": "338",
+    "driveFolderUrl": null,
+    "changeOrderPolicy": "Changes require a signed Change Order; client has 10 business days to approve/reject. Backlog re-prioritization does not require a Change Order unless it materially alters product vision or team capacity."
+  },
+
+  "phases": [
+    { "id": "p0-presales", "contractId": "m3-sow-2026", "order": 0, "name": "Phase 0 — Presales", "buildId": null, "status": "complete",
+      "gate": { "entryCriteria": ["Feasibility/Draft BET estimate captured", "Project brief written", "Scope reconciliation reviewed (no unresolved unplanned/team-added gaps)", "Provisioning complete", "Tollgate-1 delivery sign-off"], "passed": true, "agreedBy": ["delivery"], "agreedAt": "2026-05-21" } },
+    { "id": "p1-discovery", "contractId": "m3-sow-2026", "order": 1, "name": "Phase 1 — Structured Discovery", "buildId": null, "status": "in-progress",
+      "gate": { "entryCriteria": ["Phase 0 gate passed"], "passed": false, "agreedBy": [], "agreedAt": null } },
+    { "id": "p2-alf", "contractId": "m3-sow-2026", "order": 2, "name": "Phase 2 — Platform Fabric (ALF)", "buildId": "alf", "status": "not-started",
+      "gate": { "entryCriteria": ["Discovery architecture validated + agreed"], "passed": false, "agreedBy": [], "agreedAt": null } },
+    { "id": "p3-vetleo", "contractId": "m3-sow-2026", "order": 3, "name": "Phase 3 — VetLeo MVP", "buildId": "vetleo", "status": "not-started",
+      "gate": { "entryCriteria": ["Locked BET baseline + client sign-off (Tollgate-2)"], "passed": false, "agreedBy": [], "agreedAt": null } },
+    { "id": "p4-raivan", "contractId": "m3-sow-2026", "order": 4, "name": "Phase 4 — Raivan MVP", "buildId": "raivan", "status": "not-started",
+      "gate": { "entryCriteria": ["Locked BET baseline + client sign-off (Tollgate-2)"], "passed": false, "agreedBy": [], "agreedAt": null } },
+    { "id": "p5-ongoing", "contractId": "m3-sow-2026", "order": 5, "name": "Phase 5 — Progressive Intelligence (retainer)", "buildId": null, "status": "not-started",
+      "gate": { "entryCriteria": ["MVPs live"], "passed": false, "agreedBy": [], "agreedAt": null } }
+  ],
+
+  "builds": [
+    {
+      "id": "vetleo",
+      "contractId": "m3-sow-2026",
+      "name": "VetLeo",
+      "description": "Consumer mobile app — a lifecycle pet companion; the first major signal generator feeding the intelligence layer. Conversational-first, species-agnostic from day one.",
+      "githubRepo": null,
+      "budgetEnvelopeHours": 3333,
+      "status": "design"
+    },
+    {
+      "id": "raivan",
+      "contractId": "m3-sow-2026",
+      "name": "Raivan",
+      "description": "Signal-driven veterinary operating system / practice management system at parity with modern PIMS, adding orchestration so one clinical action cascades across records, billing, inventory, scheduling, and comms.",
+      "githubRepo": null,
+      "budgetEnvelopeHours": 10000,
+      "status": "discovery"
+    },
+    {
+      "id": "alf",
+      "contractId": "m3-sow-2026",
+      "name": "ALF — Unified Intelligence Layer",
+      "description": "Platform fabric: shared data + intelligence foundation that Raivan and VetLeo both feed and consume — core signal architecture, multi-tenancy framework, foundational data models. Tracked as Phase 2 (Platform Fabric).",
+      "githubRepo": null,
+      "budgetEnvelopeHours": 5000,
+      "status": "discovery"
+    }
+  ],
+
+  "contractScope": [
+    {
+      "id": "vetleo-prd-mvp",
+      "buildId": "vetleo",
+      "name": "VetLeo MVP mobile app",
+      "description": "Deliver an initial VetLeo mobile application as a lifecycle pet companion; first signal generator for the intelligence layer. Per SOW, specific capabilities to be defined in Discovery (deliberately open at contract time).",
+      "source": { "doc": "db-sow-hours.md", "section": "Phase 3 – VetLeo MVP", "url": null },
+      "status": "covered"
+    },
+    {
+      "id": "raivan-prd-pims-parity",
+      "buildId": "raivan",
+      "name": "PIMS functional parity",
+      "description": "Full parity with modern cloud PIMS: scheduling, clinical SOAP documentation, billing/invoicing, inventory, client communications, reporting, prescriptions & labs, secure multi-device (incl. mobile) access.",
+      "source": { "doc": "raivan/product-brief.md", "section": "Scope — in scope for MVP", "url": null },
+      "status": "covered"
+    },
+    {
+      "id": "raivan-prd-orchestration",
+      "buildId": "raivan",
+      "name": "Orchestration differentiators",
+      "description": "Voice-to-SOAP, voice-to-task automation, e-ink cage cards, referral portal with two-way case communication, staff scheduling integrated with clinical capacity.",
+      "source": { "doc": "raivan/product-brief.md", "section": "Scope — differentiators in scope", "url": null },
+      "status": "partial"
+    },
+    {
+      "id": "raivan-prd-integrations",
+      "buildId": "raivan",
+      "name": "Required MVP integrations",
+      "description": "IDEXX, Antech, Zoetis, Heska (labs); IDEXX WebPACS, Sound (imaging); CareCredit, Scratchpay (financing); Trupanion; QuickBooks, Xero; Gusto/ADP/Paychex/Rippling (payroll); Cubex (controlled substances).",
+      "source": { "doc": "raivan/product-brief.md", "section": "Scope — required integrations", "url": null },
+      "status": "partial"
+    },
+    {
+      "id": "raivan-prd-dso",
+      "buildId": "raivan",
+      "name": "DSO / multi-location enterprise features",
+      "description": "Corporate group accounts, multi-site consolidated dashboards, DSO contracting/onboarding tooling. Client may expect at platform level; team has DEFERRED full support to post-MVP.",
+      "source": { "doc": "raivan/product-brief.md", "section": "Scope — deferred", "url": null },
+      "status": "unplanned"
+    },
+    {
+      "id": "alf-prd-fabric",
+      "buildId": "alf",
+      "name": "Platform fabric foundation",
+      "description": "Core signal architecture, multi-tenancy framework, and foundational data models supporting both clinical and consumer workflows. Specific outcomes to be defined in Discovery.",
+      "source": { "doc": "db-sow-hours.md", "section": "Phase 2 – Platform Fabric", "url": null },
+      "status": "covered"
+    }
+  ],
+
+  "features": [
+    {
+      "id": "vetleo-getting-started",
+      "buildId": "vetleo",
+      "name": "Getting started (onboarding)",
+      "description": "Account creation, add pet(s) (any species), minimal health baseline, sharing choices. First meaningful Leo moment in under 5 minutes.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "low", "riskMultiplier": 1.3,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0,
+      "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX entry lists ticket# → GitHub issue → this feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["species-branching structure at onboarding", "minimum viable health baseline"] },
+      "contractScopeRefs": ["vetleo-prd-mvp"], "alignment": "reinterpreted",
+      "phase": "Phase 3", "priority": "high",
+      "signoff": null, "sourceRef": "layer-1-product .../vetleo-modules-and-journey.md (Place 1)"
+    },
+    {
+      "id": "vetleo-pet-history",
+      "buildId": "vetleo",
+      "name": "My pet(s) & their history",
+      "description": "One trustworthy home for who the pet is + document uploads (vaccine certs, records); multi-pet from day one; the health timeline starts here.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "low", "riskMultiplier": 1.3,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "high", "unknowns": [] },
+      "contractScopeRefs": ["vetleo-prd-mvp"], "alignment": "reinterpreted",
+      "phase": "Phase 3", "priority": "high",
+      "signoff": null, "sourceRef": "vetleo-modules-and-journey.md (Place 2)"
+    },
+    {
+      "id": "vetleo-everyday-care",
+      "buildId": "vetleo",
+      "name": "Everyday care (daily habit loop)",
+      "description": "Owner logs (or Leo prompts) daily care — walks, feeding, litter, sleep, grooming — plus a quick visual check; Leo notices patterns and speaks up. Highest retention mechanism in the quiet years.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "medium", "riskMultiplier": 2.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["how to make active logging effortless without device integration", "value-exchange feedback loop (data in → insight out)", "species-specific prompt branching"] },
+      "contractScopeRefs": ["vetleo-prd-mvp"], "alignment": "reinterpreted",
+      "phase": "Phase 3", "priority": "high",
+      "signoff": null, "sourceRef": "vetleo-modules-and-journey.md (Place 3)"
+    },
+    {
+      "id": "vetleo-triage",
+      "buildId": "vetleo",
+      "name": "When something seems wrong (triage with Leo)",
+      "description": "Full triage conversation with Leo incl. photo/video + complete escalation path (watch → monitor → call your vet → go now → emergency). The differentiator; ships at launch.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["escalation-states map not yet created (blocking artifact)", "AI triage safety/liability boundary", "urgency-tone UX across the range"] },
+      "contractScopeRefs": ["vetleo-prd-mvp"], "alignment": "reinterpreted",
+      "phase": "Phase 3", "priority": "high",
+      "signoff": null, "sourceRef": "vetleo-modules-and-journey.md (Place 4)"
+    },
+    {
+      "id": "vetleo-vet-visit-capture",
+      "buildId": "vetleo",
+      "name": "The vet visit (capture + plain-language summary)",
+      "description": "Prep before the visit, capture the recommendation (photo/recording), plain-language summary the owner keeps. Excludes appointment scheduling and Raivan integration at launch.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "medium", "riskMultiplier": 2.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["recording capture UX in a live exam", "summary accuracy expectations"] },
+      "contractScopeRefs": ["vetleo-prd-mvp"], "alignment": "reinterpreted",
+      "phase": "Phase 3", "priority": "medium",
+      "signoff": null, "sourceRef": "vetleo-modules-and-journey.md (Place 5)"
+    },
+    {
+      "id": "vetleo-post-visit",
+      "buildId": "vetleo",
+      "name": "Post-visit follow-through",
+      "description": "Today's meds, today's instructions, a 'did you give this?' check-in, and a simple sense of recovery. Excludes long-term/ongoing medication management (later phase).",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "low", "riskMultiplier": 1.3,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["boundary between acute follow-through and sustained med management"] },
+      "contractScopeRefs": ["vetleo-prd-mvp"], "alignment": "reinterpreted",
+      "phase": "Phase 3", "priority": "medium",
+      "signoff": null, "sourceRef": "vetleo-modules-and-journey.md (Place 6)"
+    },
+    {
+      "id": "vetleo-leo-power",
+      "buildId": "vetleo",
+      "name": "Leo (conversational assistant — cross-cutting 'Power')",
+      "description": "Leo is not a screen — it is woven across every Place: proactive prompts, pattern-noticing, plain-language help. Built as behaviors/components, not a tab.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["cross-cutting effort hard to bound", "AI cost/trust", "how 'Power' work is estimated vs 'Place' work"] },
+      "contractScopeRefs": [], "alignment": "team-added",
+      "phase": "Phase 3", "priority": "high",
+      "signoff": null, "sourceRef": "vetleo-modules-and-journey.md (Powers)"
+    },
+
+    {
+      "id": "raivan-emr-soap",
+      "buildId": "raivan",
+      "name": "EMR + SOAP clinical documentation",
+      "description": "Central clinical record: SOAP notes, problem lists, diagnoses, treatment history, imaging attachments; receives external lab results; destination for the voice-to-task pipeline.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "medium", "riskMultiplier": 2.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["parity checklist vs incumbent PIMS not finalized"] },
+      "contractScopeRefs": ["raivan-prd-pims-parity"], "alignment": "aligned",
+      "phase": "Phase 4", "priority": "high",
+      "signoff": null, "sourceRef": "product-ecosystem.md (EMR); raivan/product-brief.md"
+    },
+    {
+      "id": "raivan-scheduling-patient",
+      "buildId": "raivan",
+      "name": "Patient scheduling",
+      "description": "Appointment booking (self-service mobile/web, phone-agent, front-desk), real-time availability, waitlist management.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "low", "riskMultiplier": 1.3,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "high", "unknowns": [] },
+      "contractScopeRefs": ["raivan-prd-pims-parity"], "alignment": "aligned",
+      "phase": "Phase 4", "priority": "high",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Scheduling)"
+    },
+    {
+      "id": "raivan-scheduling-staff",
+      "buildId": "raivan",
+      "name": "Staff scheduling (capacity-aware)",
+      "description": "Shift assignment, coverage checks against clinical capacity (e.g., surgeries booked vs qualified scrub nurses), clock-in/out analytics.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "medium", "riskMultiplier": 2.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["capacity model depth for MVP"] },
+      "contractScopeRefs": ["raivan-prd-pims-parity", "raivan-prd-orchestration"], "alignment": "aligned",
+      "phase": "Phase 4", "priority": "medium",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Scheduling — staff)"
+    },
+    {
+      "id": "raivan-front-desk-csr",
+      "buildId": "raivan",
+      "name": "Front desk & patient flow (CSR) + AI-assisted CSR",
+      "description": "Check-in (mobile-first), waiting room, room assignment, checkout, payment collection; near-self-service kiosk flow; live-call transcription feeding an additive context stream to the human CSR.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["real-time transcription viability", "kiosk vs staffed flow scope split"] },
+      "contractScopeRefs": ["raivan-prd-pims-parity", "raivan-prd-orchestration"], "alignment": "reinterpreted",
+      "phase": "Phase 4", "priority": "medium",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Front Desk / CSR)"
+    },
+    {
+      "id": "raivan-voice-to-task",
+      "buildId": "raivan",
+      "name": "Voice-to-task pipeline",
+      "description": "The defining differentiator: converts exam/surgery speech into structured SOAP entries, nursing tasks, invoice line items, and inventory updates. Requires dedicated room audio + explicit manual activation.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["voice-to-SOAP viability in real exam-room acoustics (validate at The Sams Clinic)", "hardware/room audio device", "one of the platform-bootstrapping capabilities (effort includes standing up plumbing)"] },
+      "contractScopeRefs": ["raivan-prd-orchestration"], "alignment": "aligned",
+      "phase": "Phase 4", "priority": "high",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Voice-to-Task); flo-feature-prioritization.md (1.1 launch set)"
+    },
+    {
+      "id": "raivan-admitted-task-cagecards",
+      "buildId": "raivan",
+      "name": "Admitted patient task sheet + digital cage cards",
+      "description": "Time-sequenced task sheet for admitted patients; networked e-ink cage-card displays showing the current sheet, with QR to the full record.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["e-ink hardware sourcing + networking", "MVP inclusion vs defer"] },
+      "contractScopeRefs": ["raivan-prd-orchestration"], "alignment": "aligned",
+      "phase": "Phase 4", "priority": "medium",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Cage Cards)"
+    },
+    {
+      "id": "raivan-billing-closeout",
+      "buildId": "raivan",
+      "name": "Billing / closeout",
+      "description": "Invoice generation from accumulated line items; multi-payer split; third-party payment facilitation. Payment processing is a Raivan revenue source.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "medium", "riskMultiplier": 2.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["payments provider selection", "financing partner integrations (CareCredit/Scratchpay) at MVP"] },
+      "contractScopeRefs": ["raivan-prd-pims-parity", "raivan-prd-integrations"], "alignment": "aligned",
+      "phase": "Phase 4", "priority": "high",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Billing / Closeout)"
+    },
+    {
+      "id": "raivan-social-billsplit",
+      "buildId": "raivan",
+      "name": "Social bill-splitting + BNPL (emergency/high-cost)",
+      "description": "Shareable GoFundMe-style contribution link at checkout, structured multi-payer split, instant buy-now-pay-later pre-qualification. Doubles as brand exposure to the owner's network.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["team-originated concept — confirm client wants it in MVP vs later", "regulatory/BNPL risk"] },
+      "contractScopeRefs": [], "alignment": "team-added",
+      "phase": "Phase 4", "priority": "low",
+      "signoff": null, "sourceRef": "product-ecosystem.md (Emergency/high-cost billing) — team perspective"
+    },
+    {
+      "id": "raivan-flo-launch-set",
+      "buildId": "raivan",
+      "name": "FLO launch trust-set (AI)",
+      "description": "Trust-first AI launch set: voice-to-SOAP (1.1), allergy-conflict blocking (4.8), abnormal-lab flagging (1.4). Chosen for natural precision / asked-for relief; no historical-data dependency.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "medium", "unknowns": ["clinician trust adoption curve", "FLO platform (D1) plumbing built alongside first capabilities"] },
+      "contractScopeRefs": ["raivan-prd-orchestration"], "alignment": "reinterpreted",
+      "phase": "Phase 4", "priority": "high",
+      "signoff": null, "sourceRef": "flo-feature-prioritization.md (launch set override)"
+    },
+    {
+      "id": "alf-signal-architecture",
+      "buildId": "alf",
+      "name": "Core signal architecture",
+      "description": "The shared event/signal backbone both Raivan and VetLeo feed and consume. Foundational; architecture validated in Discovery.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["architecture validated in Discovery; foundational decisions lock Phase 1", "cross-product signal contract"] },
+      "contractScopeRefs": ["alf-prd-fabric"], "alignment": "aligned",
+      "phase": "Phase 2", "priority": "high",
+      "signoff": null, "sourceRef": "db-sow-hours.md Phase 2"
+    },
+    {
+      "id": "alf-multitenancy",
+      "buildId": "alf",
+      "name": "Multi-tenancy framework",
+      "description": "Tenancy + isolation model spanning clinical (Raivan) and consumer (VetLeo) workflows.",
+      "lifecycleState": "draft", "scopeCategory": "original",
+      "risk": "high", "riskMultiplier": 3.0,
+      "estimate": { "byDiscipline": { "pm": null, "fe": null, "be": null, "mobile": null, "design": null, "qa": null, "devops": null }, "lowHours": null, "highHours": null, "pointHours": null },
+      "actualHours": 0, "designAssets": [],
+      "mapping": { "tracker": "github", "epicRefs": [], "ticketConvention": "ProjectX ticket# → GitHub issue → feature", "confirmed": false },
+      "confidence": { "level": "low", "unknowns": ["tenancy model spans clinical + consumer"] },
+      "contractScopeRefs": ["alf-prd-fabric"], "alignment": "aligned",
+      "phase": "Phase 2", "priority": "high",
+      "signoff": null, "sourceRef": "db-sow-hours.md Phase 2"
+    }
+  ],
+
+  "changeOrders": []
+}

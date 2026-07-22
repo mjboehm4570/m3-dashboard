@@ -28,7 +28,13 @@ const BASE = process.env.AIRTABLE_BASE_ID;
 const TOKEN = process.env.AIRTABLE_TOKEN;
 const EDIT_SECRET = process.env.EDIT_SECRET || '';
 
-const T = { milestones: 'Milestones', staff: 'StaffMeta', config: 'PhaseConfig', changelog: 'Changelog' };
+const T = {
+  milestones: 'Milestones', staff: 'StaffMeta', config: 'PhaseConfig', changelog: 'Changelog',
+  // DB DOS scope layer (added in the scope-certainty build). Absent-safe: reads are wrapped
+  // so a base without these tables still serves the core tracker overrides.
+  features: 'Features', contractScope: 'ContractScope', phaseGates: 'PhaseGates',
+  changeOrders: 'ChangeOrders', audit: 'Audit',
+};
 
 // ── Airtable REST helpers ──────────────────────────────────────────────────
 function airUrl(table, qs) {
@@ -63,6 +69,30 @@ async function airUpsert(table, fieldsToMergeOn, records) {
     });
     if (!r.ok) throw new Error(`Airtable upsert ${table} failed: ${r.status} ${await r.text()}`);
   }
+}
+
+// Tolerant upsert: on "Unknown field name" (a column not yet added to the base), strip
+// the named field and retry. Generalizes the Phase-6 subphaseId tolerance so DB DOS
+// columns can be added to Airtable incrementally without breaking writes.
+async function airUpsertSafe(table, fieldsToMergeOn, records) {
+  let attempt = records;
+  for (let tries = 0; tries < 12; tries++) {
+    try { await airUpsert(table, fieldsToMergeOn, attempt); return; }
+    catch (e) {
+      const m = e.message.match(/Unknown field name:?\s*\\?"?([^"\\]+?)\\?"?[\s,}]/i) || e.message.match(/Unknown field name:?\s*"?([\w-]+)"?/i);
+      if (m && !fieldsToMergeOn.includes(m[1])) {
+        const bad = m[1];
+        attempt = attempt.map(r => { const f = { ...r.fields }; delete f[bad]; return { ...r, fields: f }; });
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
+// List a table, tolerating its absence (base not yet extended with DB DOS tables).
+async function airListSafe(table) {
+  try { return await airList(table); } catch (e) { return []; }
 }
 
 async function airCreate(table, fields) {
@@ -170,6 +200,44 @@ async function buildOverrides() {
     .sort((a, b) => (a.ts < b.ts ? 1 : -1)); // newest first (matches unshift order in the UI)
   if (changelog.length) o.changelog = changelog;
 
+  // ── DB DOS scope layer (absent-safe: missing tables just yield empty lists) ──
+  const [feat, gates, cos, aud] = await Promise.all([
+    airListSafe(T.features), airListSafe(T.phaseGates), airListSafe(T.changeOrders), airListSafe(T.audit),
+  ]);
+
+  feat.forEach(rec => {
+    const f = rec.fields;
+    if (!f.featureId) return;
+    o['feature.' + f.featureId] = {
+      lifecycleState: f.lifecycleState || 'draft',
+      scopeCategory: f.scopeCategory || 'original',
+      estimate: parseJSON(f.estimate, undefined),
+      signoff: parseJSON(f.signoff, null),
+      actualHours: typeof f.actualHours === 'number' ? f.actualHours : undefined,
+    };
+    // Drop undefined keys so Object.assign in the client doesn't clobber seed values.
+    Object.keys(o['feature.' + f.featureId]).forEach(k => o['feature.' + f.featureId][k] === undefined && delete o['feature.' + f.featureId][k]);
+  });
+
+  gates.forEach(rec => {
+    const f = rec.fields;
+    if (!f.phaseId) return;
+    o[f.phaseId + '.gate'] = {
+      passed: !!f.passed,
+      agreedBy: parseList(f.agreedBy),
+      agreedAt: f.agreedAt || null,
+    };
+  });
+
+  const changeOrders = cos.map(rec => parseJSON(rec.fields.doc, null) || rec.fields).filter(Boolean);
+  if (changeOrders.length) o.changeOrders = changeOrders.sort((a, b) => ((a.raisedAt || '') < (b.raisedAt || '') ? 1 : -1));
+
+  const audit = aud.map(rec => ({
+    ts: rec.fields.ts || '', actor: rec.fields.actor || '', entity: rec.fields.entity || '',
+    entityId: rec.fields.entityId || '', action: rec.fields.action || '',
+  })).sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  if (audit.length) o.audit = audit;
+
   return o;
 }
 
@@ -191,8 +259,68 @@ function milestoneFields(phaseId, m) {
   };
 }
 
+// Flatten a Feature to Airtable columns (nested objects → JSON long-text, per the schema).
+function featureFields(f) {
+  return {
+    featureId: f.id, buildId: f.buildId || '', name: f.name || '', description: f.description || '',
+    lifecycleState: f.lifecycleState || 'draft', scopeCategory: f.scopeCategory || 'original',
+    risk: f.risk || '', riskMultiplier: Number(f.riskMultiplier) || 0,
+    estimate: JSON.stringify(f.estimate || {}), actualHours: Number(f.actualHours) || 0,
+    designAssets: JSON.stringify(f.designAssets || []), mapping: JSON.stringify(f.mapping || {}),
+    confidence: JSON.stringify(f.confidence || {}), contractScopeRefs: JSON.stringify(f.contractScopeRefs || []),
+    alignment: f.alignment || '', phase: f.phase || '', priority: f.priority || '',
+    signoff: JSON.stringify(f.signoff || null), sourceRef: f.sourceRef || '',
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
 async function applyOp(body) {
   const { op } = body;
+
+  // ── DB DOS scope-layer ops (all tolerant of missing tables/columns) ──
+  if (op === 'upsertFeature' || op === 'lockBaseline') {
+    await airUpsertSafe(T.features, ['featureId'], [{ fields: featureFields(body.feature) }]);
+    return;
+  }
+  if (op === 'upsertPhaseGate') {
+    const g = body.gate || {};
+    await airUpsertSafe(T.phaseGates, ['phaseId'], [{ fields: {
+      phaseId: body.phaseId, passed: !!g.passed,
+      agreedBy: JSON.stringify(g.agreedBy || []), agreedAt: g.agreedAt || '',
+      entryCriteria: JSON.stringify(g.entryCriteria || []),
+    } }]);
+    return;
+  }
+  if (op === 'upsertContractScope') {
+    const s = body.item || {};
+    await airUpsertSafe(T.contractScope, ['scopeId'], [{ fields: {
+      scopeId: s.id, buildId: s.buildId || '', name: s.name || '',
+      description: s.description || '', status: s.status || '', source: JSON.stringify(s.source || {}),
+    } }]);
+    return;
+  }
+  if (op === 'appendChangeOrder') {
+    // Store the whole change order as JSON in a `doc` column (upsert by id) so its shape
+    // can evolve without schema churn; falls back to flat columns if `doc` is absent.
+    const co = body.changeOrder || {};
+    await airUpsertSafe(T.changeOrders, ['coId'], [{ fields: {
+      coId: co.id, decision: co.decision || 'pending', raisedAt: co.raisedAt || '',
+      sizeEstimateHours: Number(co.sizeEstimateHours) || 0, notes: co.notes || '',
+      doc: JSON.stringify(co),
+    } }]);
+    return;
+  }
+  if (op === 'appendAudit') {
+    const e = body.entry || {};
+    // Best-effort: the audit trail must never fail the primary edit it accompanies.
+    try {
+      await airCreate(T.audit, {
+        ts: e.ts || new Date().toISOString(), actor: e.actor || '', entity: e.entity || '',
+        entityId: e.entityId || '', action: e.action || '',
+      });
+    } catch (err) { /* Audit table not yet created — ignore */ }
+    return;
+  }
 
   // Replace a phase's full milestone set: upsert every row, delete any that vanished.
   // (Mirrors the client's "write the whole array" semantics — avoids losing seed rows.)

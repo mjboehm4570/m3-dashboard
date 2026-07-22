@@ -281,6 +281,26 @@ body[data-role="full"] .team-only{display:none!important}
 .subtab{padding:5px 14px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#64748B;transition:all .15s}
 .subtab.active{background:#fff;color:#1E293B;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .subtab:hover:not(.active){color:#334155}
+/* ─── DB DOS product lens (program-global dimension toggle) ─── */
+.product-lens{display:flex;align-items:center;gap:4px;flex-wrap:wrap;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:6px 10px;margin:16px 0 4px}
+.product-lens .subtab.active{color:var(--indigo)}
+.dbdos-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--indigo);background:var(--tint-indigo,#EEF2FF);border:1px solid #E0E7FF;border-radius:4px;padding:1px 6px;vertical-align:middle}
+/* ─── DB DOS feature drawer ─── */
+.fd-overlay{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;z-index:120;justify-content:flex-end}
+.fd-overlay.visible{display:flex}
+.fd-panel{width:min(480px,92vw);height:100%;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow-y:auto}
+.fd-head{display:flex;justify-content:space-between;align-items:flex-start;padding:20px;border-bottom:1px solid #E2E8F0;position:sticky;top:0;background:#fff}
+.fd-body{padding:18px 20px}
+.fd-section{margin-top:16px;padding-top:14px;border-top:1px solid #F1F5F9}
+.fd-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#94A3B8;margin-bottom:6px}
+/* ─── DB DOS reconciliation columns ─── */
+.recon-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.recon-grid{grid-template-columns:1fr}}
+.recon-col{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px}
+.recon-item{padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px}
+.recon-item:last-child{border-bottom:none}
+.recon-status{font-size:10px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:1px 6px}
+.rs-covered{color:#065F46;background:#D1FAE5}.rs-partial{color:#92400E;background:#FEF3C7}.rs-unplanned{color:#991B1B;background:#FEE2E2}.rs-teamadded{color:#3730A3;background:#E0E7FF}
 .subphase-split{display:flex;align-items:center;gap:12px;margin-left:auto}
 .split-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748B}
 .split-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -530,6 +550,7 @@ tr:hover td{background:#FAFAFA}
       <div class="nav-tabs">
         <button class="nav-tab active" id="tab-overview" onclick="goToOverview()">Program Overview</button>
         <button class="nav-tab" id="tab-timeline" onclick="goToTimeline()">Timeline</button>
+        <button class="nav-tab" id="tab-scope" onclick="goToScope()" style="display:none">Scope</button>
         <button class="nav-tab full-only" id="tab-kb" onclick="goToKB()">Knowledge Base</button>
         <button class="nav-tab" id="tab-detail" onclick="showPage('detail',this)" style="display:none">Phase Detail</button>
       </div>
@@ -543,6 +564,7 @@ tr:hover td{background:#FAFAFA}
 
   <div id="page-overview" class="page active"></div>
   <div id="page-timeline" class="page"></div>
+  <div id="page-scope" class="page"></div>
   <div id="page-kb" class="page"></div>
   <div id="page-detail" class="page"></div>
 
@@ -584,10 +606,12 @@ tr:hover td{background:#FAFAFA}
 // ═══════════════════════════════════════════
 const TEAM_PW = 'm3-team-2026';
 const FULL_PW = 'm3-lead-2026';
-const DATA_URL = './data.json';
-const API_URL  = '/api/state';   // serverless Airtable proxy (falls back to localStorage if unavailable)
-const KB_URL   = '/api/kb';      // serverless read-only proxy for the private knowledge-base repo
-const CHAT_URL = '/api/chat';    // serverless Anthropic proxy for the in-app assistant
+const DATA_URL  = './data.json';
+const DBDOS_URL = './dbdos.json'; // static DB DOS scope layer (features/scope/gates), merged onto data.json at load
+const API_URL   = '/api/state';  // serverless Airtable proxy (falls back to localStorage if unavailable)
+const KB_URL    = '/api/kb';     // serverless read-only proxy for the private knowledge-base repo
+const CHAT_URL  = '/api/chat';   // serverless Anthropic proxy for the in-app assistant
+const GITHUB_URL = '/api/github'; // serverless GitHub epics proxy (mock until configured) — Epic 4
 
 // ═══════════════════════════════════════════
 // STATE
@@ -615,6 +639,11 @@ let chatMessages = [];           // in-app assistant conversation [{role, conten
 let chatBusy = false;
 let kbCache = null;               // { data, ts } — last successful /api/kb payload, shared by KB tab + chat context
 const KB_CACHE_TTL_MS = 5 * 60 * 1000;  // 5 min
+
+// ─── DB DOS scope layer (loaded from dbdos.json; null if the file is absent = pure tracker) ───
+let DB = null;                    // { client, contract, products[], contractScope[], features[], phaseGates, phaseProducts, phase0, milestoneLinks, changeOrders, audit }
+let productLens = 'all';          // program-global product dimension lens: 'all' | product id ('vetleo'/'raivan'/'alf')
+function dbdosActive() { return !!(DB && Array.isArray(DB.features)); }
 
 // ═══════════════════════════════════════════
 // PM OVERRIDES  (server-backed via /api/state, localStorage as offline cache)
@@ -721,17 +750,152 @@ function applyOverrides(data) {
 }
 
 // ═══════════════════════════════════════════
+// DB DOS SCOPE LAYER (merges dbdos.json onto data.json in memory; absent-safe)
+// ═══════════════════════════════════════════
+// Prepends Phase 0, hangs each phase's advisory gate + productId, and decorates
+// milestones with their feature link. Gate/feature edits ride the same override
+// cache (keyed `<phaseId>.gate`, `feature.<id>`) so PM changes survive reloads.
+function applyDbDos(data, dbdos) {
+  if (!dbdos || !Array.isArray(dbdos.features)) return data;
+  const o = getOverrides();
+
+  // Prepend Phase 0 (Presales) once, so it renders first in the spine.
+  if (dbdos.phase0 && !data.phases.some(p => p.id === 'phase0')) {
+    data.phases.unshift(dbdos.phase0);
+  }
+
+  data.phases.forEach(phase => {
+    // Advisory gate: seed value, then any PM override on top.
+    if (dbdos.phaseGates && dbdos.phaseGates[phase.id]) {
+      phase.gate = { ...dbdos.phaseGates[phase.id] };
+    }
+    if (o[phase.id + '.gate']) phase.gate = { ...(phase.gate || {}), ...o[phase.id + '.gate'] };
+
+    // Product this phase delivers (build phases only).
+    if (dbdos.phaseProducts && dbdos.phaseProducts[phase.id]) phase.productId = dbdos.phaseProducts[phase.id];
+
+    // Decorate milestones with their feature link (1:1 build / n:n discovery).
+    (phase.milestones || []).forEach(m => {
+      const lk = dbdos.milestoneLinks && dbdos.milestoneLinks[m.id];
+      if (lk) {
+        if (lk.featureId) m.featureId = lk.featureId;
+        if (Array.isArray(lk.shapesFeatureIds)) m.shapesFeatureIds = lk.shapesFeatureIds;
+      }
+    });
+  });
+
+  // Apply per-feature overrides (lock/edit) onto the seed features.
+  dbdos.features.forEach(f => {
+    const ov = o['feature.' + f.id];
+    if (ov) Object.assign(f, ov);
+  });
+
+  // Restore persisted change orders + audit (merge overrides on top of seed).
+  if (Array.isArray(o.changeOrders)) {
+    const seen = new Set((dbdos.changeOrders || []).map(c => c.id));
+    o.changeOrders.forEach(c => { if (!seen.has(c.id)) (dbdos.changeOrders = dbdos.changeOrders || []).unshift(c); });
+  }
+  if (Array.isArray(o.audit)) dbdos.audit = o.audit.concat(dbdos.audit || []);
+
+  return data;
+}
+
+// ── Product-lens helpers (program-global; distinct from the per-phase subphase toggle) ──
+function productList() { return (DB && DB.products) || []; }
+function productName(id) { const p = productList().find(x => x.id === id); return p ? p.name : id; }
+
+// Features for the current product lens (optionally filtered to one build/product).
+function featuresForLens(buildId) {
+  if (!dbdosActive()) return [];
+  let fs = DB.features;
+  if (buildId) fs = fs.filter(f => f.buildId === buildId);
+  else if (productLens !== 'all') fs = fs.filter(f => f.buildId === productLens);
+  return fs;
+}
+function featureById(id) { return dbdosActive() ? DB.features.find(f => f.id === id) : null; }
+
+// A phase is "in view" for the product lens if it has no product mapping (shared,
+// e.g. discovery/retainer) or its productId matches the lens. Build phases hide when
+// a different product is selected.
+function phaseInLens(phase) {
+  if (productLens === 'all') return true;
+  if (!phase.productId) return true;
+  return phase.productId === productLens;
+}
+
+// Milestones of a phase filtered to the product lens: a milestone stays if it delivers
+// or shapes a feature belonging to the lens product, or carries no feature link at all.
+function milestonesForProduct(phase) {
+  const ms = phase.milestones || [];
+  if (productLens === 'all') return ms;
+  return ms.filter(m => {
+    const ids = [m.featureId, ...(m.shapesFeatureIds || [])].filter(Boolean);
+    if (!ids.length) return true;   // unlinked milestone shows in every lens
+    return ids.some(id => { const f = featureById(id); return f && f.buildId === productLens; });
+  });
+}
+
+// Compact advisory-gate chip for phase cards + detail headers. Gates are advisory:
+// this is a readiness signal, never a hard block on progression.
+function gateChip(phase) {
+  const g = phase.gate;
+  if (!g) return '';
+  if (g.passed) {
+    const by = (g.agreedBy && g.agreedBy.length) ? g.agreedBy.join(', ') : 'delivery';
+    return `<span class="alert-chip chip-green"><span class="chip-icon">✓</span><span class="chip-title">Gate passed</span><span class="chip-sub">· ${by}${g.agreedAt ? ' · ' + fmtDate(g.agreedAt) : ''}</span></span>`;
+  }
+  const n = (g.entryCriteria || []).length;
+  return `<span class="alert-chip chip-yellow"><span class="chip-icon">◔</span><span class="chip-title">Gate open</span><span class="chip-sub">· ${n} criteria to confirm</span></span>`;
+}
+
+// Program-global product-lens toggle (Combined / VetLeo / Raivan / ALF). Distinct from
+// the per-phase subphase toggle — this is a dimension across the whole engagement.
+function renderProductLens() {
+  if (!dbdosActive() || !productList().length) return '';
+  const btn = (id, label) => `<button class="subtab ${productLens === id ? 'active' : ''}" onclick="setProductLens('${id}')">${label}</button>`;
+  return `<div class="product-lens">
+    <span class="section-label" style="margin:0 4px 0 0">Product</span>
+    ${btn('all', 'Combined')}
+    ${productList().map(p => btn(p.id, p.name)).join('')}
+  </div>`;
+}
+function setProductLens(id) {
+  productLens = id;
+  if (currentPage === 'detail' && selectedPhaseId) renderDetail(selectedPhaseId);
+  else renderOverview();
+}
+function lensSuffix() { return (dbdosActive() && productLens !== 'all') ? ` · <span style="color:var(--indigo,#6366F1)">${productName(productLens)}</span>` : ''; }
+function lensEmpty() {
+  return `<div class="deliv-empty" style="padding:22px;text-align:center;color:#94A3B8">No ${productName(productLens)} work in this group. <button class="uc-cta" style="margin-left:4px" onclick="setProductLens('all')">Show all products →</button></div>`;
+}
+
+// Fetch the static DB DOS scope layer. Absent-safe: a 404/parse error just returns
+// null and the app behaves exactly as the plain phase+hours tracker.
+async function loadDbDos() {
+  try {
+    const r = await fetch(DBDOS_URL);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+// ═══════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════
 async function loadData() {
   document.getElementById('loading-screen').style.display = 'flex';
   document.getElementById('error-screen').style.display = 'none';
   try {
-    const r = await fetch(DATA_URL);
+    const [r, dbdosData] = await Promise.all([
+      fetch(DATA_URL),
+      loadDbDos(),                   // static scope layer; null if dbdos.json is absent
+    ]);
     if (!r.ok) throw new Error(r.status);
     const data = await r.json();
     await loadState();               // PM overrides (server → localStorage fallback)
     D = applyOverrides(data);
+    DB = dbdosData;
+    applyDbDos(D, DB);               // merge Phase 0 / gates / product tags / feature links (no-op if absent)
     document.getElementById('loading-screen').style.display = 'none';
     // Restore a saved session (7-day) if present; otherwise show the login overlay.
     const saved = readSession();
@@ -781,6 +945,9 @@ function setRole(r) {
   const badge = document.getElementById('role-badge');
   badge.className = 'role-badge ' + r;
   document.getElementById('role-badge-text').textContent = r === 'full' ? 'Leadership View' : 'Team View';
+  // Reveal the Scope tab only when the DB DOS layer is loaded.
+  const scopeTab = document.getElementById('tab-scope');
+  if (scopeTab) scopeTab.style.display = dbdosActive() ? '' : 'none';
   renderOverview();
 }
 
@@ -991,12 +1158,15 @@ function renderOverview() {
       </div>
     </div>
     ${renderKpiStrip(phases, activePhase, overdueTot, soonTot)}
+    ${renderProductLens()}
     ${renderAttentionPanel(attnItems)}
-    ${renderPhaseAllocationPanel(phases)}
-    <div class="section-label">Active Now</div>
-    <div class="phase-grid">${renderActiveGroup(phases.filter(p => p.type !== 'retainer' && (p.state === 'active' || p.state === 'complete')))}</div>`;
+    ${renderPhaseAllocationPanel(phases)}`;
 
-  const upc = phases.filter(p => p.type === 'retainer' || p.state === 'upcoming');
+  const activeList = phases.filter(p => p.type !== 'retainer' && (p.state === 'active' || p.state === 'complete') && phaseInLens(p));
+  html += `<div class="section-label">Active Now${lensSuffix()}</div>
+    <div class="phase-grid">${activeList.length ? renderActiveGroup(activeList) : lensEmpty()}</div>`;
+
+  const upc = phases.filter(p => (p.type === 'retainer' || p.state === 'upcoming') && phaseInLens(p));
   if (upc.length) {
     html += `<div class="section-label" style="margin-top:24px">Upcoming</div>
       <div class="phase-grid">${renderUpcomingSection(upc)}</div>`;
@@ -1211,6 +1381,15 @@ function renderPhaseCard(phase) {
       </div>
       <span class="status-badge ${badgeCls}">${badgeLabel}</span>
     </div>`;
+
+  // Phase 0 (Presales) — a gate/scope phase, not hours-tracked. Show the gate status, not a burn bar.
+  if (phase.type === 'presales') {
+    return `<div class="phase-row" style="flex:1"><div class="phase-card state-${health}" onclick="goToPhase('${phase.id}')">
+      ${header}
+      <div class="card-dates">${phase.gate && phase.gate.agreedAt ? 'Gate passed ' + fmtDate(phase.gate.agreedAt) : 'Presales & feasibility'}</div>
+      <div class="deliv-foot" style="margin-top:10px">${gateChip(phase)}</div>
+    </div></div>`;
+  }
 
   // Retainer fallback (if a retainer phase is ever active — normally rendered as an upcoming card).
   if (phase.type === 'retainer') {
@@ -1576,7 +1755,9 @@ function renderDetail(phaseId) {
 
   let html = `<button class="back-btn" onclick="goToOverview()">← Program Overview</button>`;
 
-  if (phase.type === 'retainer') {
+  if (phase.type === 'presales') {
+    html += renderPresalesDetail(phase);
+  } else if (phase.type === 'retainer') {
     html += renderRetainerDetail(phase);
   } else if (phase.state === 'upcoming') {
     html += renderUpcomingDetail(phase);
@@ -1589,9 +1770,576 @@ function renderDetail(phaseId) {
   if (document.getElementById('phase-gantt')) initPhaseGantt(phase);
 }
 
+// ═══════════════════════════════════════════
+// DB DOS — reconciliation, gates, Phase 0 detail
+// ═══════════════════════════════════════════
+// Two-layer scope reconciliation (client contractScope vs. team features), optionally
+// scoped to a product. A contract item with no linked feature is `unplanned` (missed
+// scope); a feature with no contractScopeRefs is `team-added`; `reinterpreted` flags a
+// divergent read. Reads seeded status/alignment but recomputes coverage from links.
+function computeReconciliation(buildId) {
+  if (!dbdosActive()) return { items: [], teamAdded: [], reinterpreted: [], counts: {} };
+  const lens = buildId || (productLens !== 'all' ? productLens : null);
+  const feats = DB.features.filter(f => !lens || f.buildId === lens);
+  const scope = (DB.contractScope || []).filter(s => !lens || s.buildId === lens);
+
+  const items = scope.map(s => {
+    const linked = feats.filter(f => (f.contractScopeRefs || []).includes(s.id));
+    let status = s.status;
+    if (!linked.length) status = 'unplanned';
+    else if (status === 'unplanned') status = 'partial';
+    return { item: s, linked, status };
+  });
+  const teamAdded = feats.filter(f => !(f.contractScopeRefs || []).length || f.alignment === 'team-added');
+  const reinterpreted = feats.filter(f => f.alignment === 'reinterpreted');
+  const counts = {
+    covered: items.filter(i => i.status === 'covered').length,
+    partial: items.filter(i => i.status === 'partial').length,
+    unplanned: items.filter(i => i.status === 'unplanned').length,
+    teamAdded: teamAdded.length,
+    reinterpreted: reinterpreted.length,
+  };
+  return { items, teamAdded, reinterpreted, counts };
+}
+
+// Advisory gate panel: entry criteria + pass/reopen (Leadership). Never blocks progression.
+function renderGatePanel(phase) {
+  const g = phase.gate;
+  if (!g) return '';
+  const crit = (g.entryCriteria || []).map(c =>
+    `<li style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:13px;color:#475569">
+      <span style="color:${g.passed ? 'var(--green)' : '#CBD5E1'};font-weight:700">${g.passed ? '✓' : '○'}</span>${c}</li>`).join('');
+  const action = g.passed
+    ? `<button class="btn-secondary full-only" onclick="reopenGate('${phase.id}')">Reopen gate</button>`
+    : `<button class="btn-primary full-only" onclick="passGate('${phase.id}')">Mark gate passed →</button>`;
+  return `<div class="panel" style="margin-top:16px">
+    <div class="panel-header">
+      <span class="panel-title">Phase Gate <span class="dbdos-tag">advisory</span></span>
+      ${gateChip(phase)}
+    </div>
+    <div style="padding:12px 20px 16px">
+      <ul style="list-style:none;padding:0;margin:0 0 12px">${crit}</ul>
+      <div style="font-size:11px;color:#94A3B8;margin-bottom:12px">Gates surface readiness — the PM/PD can advance a phase consciously even when open.</div>
+      ${action}
+    </div>
+  </div>`;
+}
+
+function passGate(phaseId) {
+  const phase = D.phases.find(p => p.id === phaseId); if (!phase || !phase.gate) return;
+  const signer = prompt('Who is signing off this gate?', 'Delivery lead');
+  if (signer === null) return;
+  phase.gate.passed = true;
+  phase.gate.agreedBy = [signer || 'Delivery lead'];
+  phase.gate.agreedAt = todayYMD();
+  persistGate(phase, `Gate passed by ${phase.gate.agreedBy[0]}`);
+  renderDetail(phaseId);
+}
+function reopenGate(phaseId) {
+  const phase = D.phases.find(p => p.id === phaseId); if (!phase || !phase.gate) return;
+  phase.gate.passed = false; phase.gate.agreedBy = []; phase.gate.agreedAt = null;
+  persistGate(phase, 'Gate reopened');
+  renderDetail(phaseId);
+}
+function persistGate(phase, note) {
+  const o = getOverrides();
+  o[phase.id + '.gate'] = { passed: phase.gate.passed, agreedBy: phase.gate.agreedBy, agreedAt: phase.gate.agreedAt };
+  remoteSave('upsertPhaseGate', { phaseId: phase.id, gate: phase.gate });
+  logAudit({ entity: 'gate', entityId: phase.id, action: note });
+  logChangelog(phase.id, phase.name, note, [note]);
+}
+
+// DB DOS audit trail (mirrors to the override cache + in-memory DB.audit; server op is tolerant).
+function logAudit(partial) {
+  const entry = { ts: new Date().toISOString(), actor: role || 'user', before: null, after: null, ...partial };
+  const o = getOverrides();
+  if (!Array.isArray(o.audit)) o.audit = [];
+  o.audit.unshift(entry);
+  if (DB && Array.isArray(DB.audit)) DB.audit.unshift(entry);
+  remoteSave('appendAudit', { entry });
+}
+
+function renderPresalesDetail(phase) {
+  const c = DB.contract || {};
+  const prods = productList();
+  const rec = computeReconciliation();
+  const gaps = rec.counts.unplanned + rec.counts.teamAdded;
+
+  const budgetStr = c.budget
+    ? `${c.budget.lowHours ? fmt(c.budget.lowHours) + (c.budget.highHours ? '–' + fmt(c.budget.highHours) : '+') : '—'} hrs · ${c.budget.model} · ${c.contractType}`
+    : '—';
+
+  const envelopeRows = prods.map(p =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F1F5F9;font-size:13px">
+      <span style="color:#1E293B;font-weight:500">${p.name}</span>
+      <span style="color:#64748B">${p.budgetEnvelopeHours ? fmt(p.budgetEnvelopeHours) + ' hrs' : '—'} · <span style="text-transform:capitalize">${p.status}</span></span>
+    </div>`).join('');
+
+  return `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div>
+          <div class="detail-phase-label">Phase 0 · Presales <span class="dbdos-tag">DB DOS</span></div>
+          <div class="detail-phase-name">${phase.name}</div>
+          <div class="detail-phase-sub">${phase.subtitle}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">${gateChip(phase)}</div>
+      </div>
+    </div>
+    ${renderProductLens()}
+    ${renderGatePanel(phase)}
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><span class="panel-title">Feasibility / Draft BET</span><span class="text-muted text-sm">Sales-process feasibility estimate</span></div>
+      <div style="padding:12px 20px 16px">
+        <div style="font-size:13px;color:#475569;margin-bottom:10px">Contract envelope: <strong>${budgetStr}</strong></div>
+        ${envelopeRows}
+        <div style="font-size:11px;color:#94A3B8;margin-top:10px">Per-feature estimates are set at the BET-lock exercise (Tollgate 2). Draft features carry ranges only.</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><span class="panel-title">Project Brief</span></div>
+      <div style="padding:12px 20px 16px;font-size:13px;color:#475569">
+        Assembled from the Knowledge Base, HubSpot deal, and sales Drive.
+        <button class="uc-cta full-only" style="margin-left:6px" onclick="goToKB()">Open Knowledge Base →</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><span class="panel-title">Scope Reconciliation</span>
+        ${gaps ? `<span class="alert-chip chip-yellow"><span class="chip-icon">⚠</span><span class="chip-title">${gaps} gap${gaps !== 1 ? 's' : ''}</span></span>` : `<span class="alert-chip chip-green"><span class="chip-icon">✓</span><span class="chip-title">Aligned</span></span>`}
+      </div>
+      <div style="padding:12px 20px 16px;font-size:13px;color:#475569">
+        ${rec.counts.unplanned} unplanned · ${rec.counts.teamAdded} team-added · ${rec.counts.reinterpreted} reinterpreted
+        <button class="uc-cta" style="margin-left:6px" onclick="goToScope()">Review scope →</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header"><span class="panel-title">Provisioning</span></div>
+      <div style="padding:12px 20px 16px">
+        <ul style="list-style:none;padding:0;margin:0">
+          ${['ProjectX project #' + (c.projectXProjectId || '—'), 'GitHub repositories', 'Slack channels', 'Team staffing at kickoff'].map(x =>
+            `<li style="display:flex;gap:8px;padding:4px 0;font-size:13px;color:#475569"><span style="color:var(--green)">✓</span>${x}</li>`).join('')}
+        </ul>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+// DB DOS — FEATURE SCOPE LAYER (Epic 2)
+// ═══════════════════════════════════════════
+// Small display helpers for the BET feature record.
+function featureLifecycleBadge(f) {
+  const map = { draft: ['badge-upcoming', 'Draft'], locked: ['badge-active', '🔒 Locked'], live: ['badge-complete', 'Live'] };
+  const [cls, label] = map[f.lifecycleState] || map.draft;
+  return `<span class="status-badge ${cls}">${label}</span>`;
+}
+function estimateDisplay(f) {
+  const e = f.estimate || {};
+  if (e.pointHours != null) return `${fmt(e.pointHours)} h`;
+  if (e.lowHours != null && e.highHours != null) return `${fmt(e.lowHours)}–${fmt(e.highHours)} h`;
+  return `<span style="color:#94A3B8">Draft — no estimate</span>`;
+}
+function riskTag(f) {
+  const c = { low: ['#065F46', '#D1FAE5'], medium: ['#92400E', '#FEF3C7'], high: ['#991B1B', '#FEE2E2'] }[f.risk] || ['#475569', '#F1F5F9'];
+  return `<span style="font-size:10px;font-weight:700;text-transform:uppercase;color:${c[0]};background:${c[1]};border-radius:4px;padding:1px 6px">${f.risk || '—'}${f.riskMultiplier ? ' ×' + f.riskMultiplier : ''}</span>`;
+}
+function alignmentTag(f) {
+  if (!f.alignment || f.alignment === 'aligned') return '';
+  const c = { reinterpreted: ['#92400E', '#FEF3C7', 'reinterpreted'], 'team-added': ['#3730A3', '#E0E7FF', 'team-added'] }[f.alignment];
+  return c ? `<span style="font-size:10px;font-weight:700;color:${c[0]};background:${c[1]};border-radius:4px;padding:1px 6px">${c[2]}</span>` : '';
+}
+function confidenceTag(f) {
+  const cf = f.confidence || {};
+  const c = { low: ['#991B1B', '#FEE2E2'], medium: ['#92400E', '#FEF3C7'], high: ['#065F46', '#D1FAE5'] }[cf.level] || ['#475569', '#F1F5F9'];
+  const n = (cf.unknowns || []).length;
+  return `<span title="${(cf.unknowns || []).join(' · ').replace(/"/g, '')}" style="font-size:10px;font-weight:600;color:${c[0]};background:${c[1]};border-radius:4px;padding:1px 6px">conf: ${cf.level || '—'}${n ? ' · ' + n + ' unknown' + (n !== 1 ? 's' : '') : ''}</span>`;
+}
+
+// Features relevant to a phase: build phases → that product's features (1:1 via milestones);
+// discovery/other → features its milestones shape (n:n). Respects the product lens.
+function featuresForPhase(phase) {
+  if (!dbdosActive()) return [];
+  let fs;
+  if (phase.productId) {
+    fs = DB.features.filter(f => f.buildId === phase.productId);
+  } else {
+    const ids = new Set();
+    (phase.milestones || []).forEach(m => { if (m.featureId) ids.add(m.featureId); (m.shapesFeatureIds || []).forEach(x => ids.add(x)); });
+    fs = DB.features.filter(f => ids.has(f.id));
+    if (!fs.length) fs = DB.features.slice(); // phase0/retainer fallback: all features
+  }
+  if (productLens !== 'all') fs = fs.filter(f => f.buildId === productLens);
+  return fs;
+}
+
+function renderPhaseFeaturesPanel(phase) {
+  const feats = featuresForPhase(phase);
+  const isBuild = !!phase.productId;
+  const combined = productLens === 'all';
+  const heading = isBuild ? 'BET Features — delivered by this phase' : 'BET Features shaped in this phase';
+  if (!feats.length) {
+    return `<div class="panel" style="margin-top:16px"><div class="panel-header"><span class="panel-title">${heading}</span></div>
+      <div style="padding:22px;text-align:center;color:#94A3B8;font-size:13px">No features for ${combined ? 'this phase' : productName(productLens)} yet.</div></div>`;
+  }
+  const rows = feats.map(f => {
+    const link = isBuild ? milestoneForFeature(phase, f.id) : shapingMilestones(phase, f.id);
+    return `<tr onclick="openFeatureDrawer('${f.id}')" style="cursor:pointer">
+      <td><div style="font-weight:600;color:#1E293B">${f.name}</div>${combined ? `<div style="font-size:11px;color:#94A3B8">${productName(f.buildId)}</div>` : ''}</td>
+      <td>${featureLifecycleBadge(f)}</td>
+      <td>${riskTag(f)}</td>
+      <td>${confidenceTag(f)}</td>
+      <td style="font-size:13px;color:#475569">${estimateDisplay(f)}</td>
+      <td>${alignmentTag(f)}</td>
+      <td style="font-size:11px;color:#64748B">${link}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="panel" style="margin-top:16px">
+    <div class="panel-header">
+      <span class="panel-title">${heading} <span class="dbdos-tag">${isBuild ? '1:1 milestones' : 'n:n discovery'}</span></span>
+      <span class="text-sm text-muted">${feats.length} feature${feats.length !== 1 ? 's' : ''}</span>
+    </div>
+    <table>
+      <thead><tr><th>Feature</th><th>Lifecycle</th><th>Risk</th><th>Confidence</th><th>Estimate</th><th>Alignment</th><th>${isBuild ? 'Milestone' : 'Shaped by'}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+// Build-phase 1:1 link: the milestone delivering this feature (if any tracked yet).
+function milestoneForFeature(phase, featureId) {
+  const m = (phase.milestones || []).find(x => x.featureId === featureId);
+  return m ? m.name : '<span style="color:#CBD5E1">unmapped</span>';
+}
+// Discovery n:n link: milestones shaping this feature.
+function shapingMilestones(phase, featureId) {
+  const ms = (phase.milestones || []).filter(x => (x.shapesFeatureIds || []).includes(featureId));
+  return ms.length ? ms.map(m => m.name).join(', ') : '<span style="color:#CBD5E1">—</span>';
+}
+
+// ── Feature drawer (side panel) — full BET detail + baseline lock (Tollgate 2) ──
+function openFeatureDrawer(featureId) {
+  const f = featureById(featureId); if (!f) return;
+  const e = f.estimate || {}; const cf = f.confidence || {};
+  const disc = e.byDiscipline || {};
+  const discRows = Object.keys(disc).filter(k => disc[k] != null).map(k => `${k.toUpperCase()}: ${fmt(disc[k])}h`).join(' · ') || 'Not yet estimated (Draft)';
+  const scopeRefs = (f.contractScopeRefs || []).map(id => {
+    const s = (DB.contractScope || []).find(x => x.id === id);
+    return s ? `<li style="font-size:12px;color:#475569;padding:2px 0">${s.name}${s.source && s.source.doc ? ` <span style="color:#94A3B8">· ${s.source.doc}</span>` : ''}</li>` : '';
+  }).join('') || '<li style="font-size:12px;color:#94A3B8;padding:2px 0">None — team-added scope</li>';
+  const assets = (f.designAssets || []).map(a => `<a href="${a.url}" target="_blank" style="font-size:12px;color:var(--indigo);display:block">${a.type}: ${a.label || a.url}</a>`).join('') || '<span style="font-size:12px;color:#94A3B8">No design assets linked</span>';
+  const unknowns = (cf.unknowns || []).map(u => `<li style="font-size:12px;color:#475569;padding:2px 0">• ${u}</li>`).join('') || '<li style="font-size:12px;color:#94A3B8;padding:2px 0">None open</li>';
+  const locked = f.lifecycleState === 'locked' || f.lifecycleState === 'live';
+  const lowConf = cf.level === 'low';
+
+  const lockBlock = locked
+    ? `<div class="alert-chip chip-green" style="margin-top:8px"><span class="chip-icon">🔒</span><span class="chip-title">Baseline locked</span><span class="chip-sub">${f.signoff && f.signoff.signedBy ? '· ' + f.signoff.signedBy : ''}${f.signoff && f.signoff.lockedAt ? ' · ' + fmtDate(f.signoff.lockedAt) : ''}</span></div>
+       <button class="btn-secondary full-only" style="margin-top:10px" onclick="unlockFeature('${f.id}')">Unlock (via change order)</button>`
+    : `${lowConf ? `<div class="alert-chip chip-yellow" style="margin-top:8px"><span class="chip-icon">⚠</span><span class="chip-title">Low confidence</span><span class="chip-sub">· not ready to lock (advisory)</span></div>` : ''}
+       <div class="full-only" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+         <input id="lock-point-hours" type="number" placeholder="Point hours" style="width:120px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px">
+         <button class="btn-primary" onclick="lockFeatureBaseline('${f.id}')">Lock baseline (T2) →</button>
+       </div>`;
+
+  const html = `
+    <div class="fd-head">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--indigo)">${productName(f.buildId)} · BET Feature</div>
+        <div style="font-size:18px;font-weight:700;color:#1E293B;margin-top:2px">${f.name}</div>
+      </div>
+      <button onclick="closeFeatureDrawer()" style="background:none;border:none;font-size:22px;color:#94A3B8;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div class="fd-body">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${featureLifecycleBadge(f)} ${riskTag(f)} ${confidenceTag(f)} ${alignmentTag(f)}</div>
+      <p style="font-size:13px;color:#475569;line-height:1.5">${f.description || ''}</p>
+
+      <div class="fd-section"><div class="fd-label">Estimate</div><div style="font-size:13px;color:#1E293B">${estimateDisplay(f)}</div><div style="font-size:11px;color:#94A3B8;margin-top:2px">${discRows}</div></div>
+      <div class="fd-section"><div class="fd-label">Open unknowns</div><ul style="list-style:none;padding:0;margin:0">${unknowns}</ul></div>
+      <div class="fd-section"><div class="fd-label">Contract scope covered</div><ul style="list-style:none;padding:0;margin:0">${scopeRefs}</ul></div>
+      <div class="fd-section"><div class="fd-label">Design assets</div>${assets}</div>
+      <div class="fd-section"><div class="fd-label">Baseline (Tollgate 2)</div>${lockBlock}</div>
+      ${f.sourceRef ? `<div class="fd-section"><div class="fd-label">Source</div><div style="font-size:11px;color:#94A3B8">${f.sourceRef}</div></div>` : ''}
+    </div>`;
+  let ov = document.getElementById('feature-drawer');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'feature-drawer';
+    ov.className = 'fd-overlay';
+    ov.onclick = e => { if (e.target === ov) closeFeatureDrawer(); };
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `<div class="fd-panel">${html}</div>`;
+  ov.classList.add('visible');
+}
+function closeFeatureDrawer() { const ov = document.getElementById('feature-drawer'); if (ov) ov.classList.remove('visible'); }
+
+// Lock a feature baseline (Tollgate 2). Low confidence warns but never blocks.
+function lockFeatureBaseline(featureId) {
+  const f = featureById(featureId); if (!f) return;
+  const input = document.getElementById('lock-point-hours');
+  const pt = input && input.value ? parseFloat(input.value) : (f.estimate && f.estimate.pointHours);
+  if (pt == null || isNaN(pt)) { alert('Enter the locked point-hours estimate first.'); return; }
+  const signer = prompt('Client sign-off — who approved this baseline?', 'Client sponsor');
+  if (signer === null) return;
+  f.estimate = { ...(f.estimate || {}), pointHours: pt };
+  f.lifecycleState = 'locked';
+  f.signoff = { baselineLocked: true, lockedAt: todayYMD(), signedBy: signer || 'Client', tollgate: 'T2' };
+  persistFeature(f, `Baseline locked at ${fmt(pt)}h by ${f.signoff.signedBy}`);
+  openFeatureDrawer(featureId);
+  if (currentPage === 'detail') renderDetail(selectedPhaseId);
+  else if (currentPage === 'scope') renderScope();
+}
+function unlockFeature(featureId) {
+  const f = featureById(featureId); if (!f) return;
+  if (!confirm('Unlock this baseline? In production this requires a change order.')) return;
+  f.lifecycleState = 'draft';
+  f.signoff = null;
+  persistFeature(f, 'Baseline unlocked');
+  openFeatureDrawer(featureId);
+  if (currentPage === 'detail') renderDetail(selectedPhaseId);
+  else if (currentPage === 'scope') renderScope();
+}
+function persistFeature(f, note) {
+  const o = getOverrides();
+  o['feature.' + f.id] = { lifecycleState: f.lifecycleState, estimate: f.estimate, signoff: f.signoff, scopeCategory: f.scopeCategory, actualHours: f.actualHours };
+  remoteSave('upsertFeature', { feature: f });
+  logAudit({ entity: 'feature', entityId: f.id, action: note });
+  logChangelog(selectedPhaseId || 'program', 'DB DOS', note + ' — ' + f.name, [note]);
+}
+
+// ═══════════════════════════════════════════
+// DB DOS — SCOPE RECONCILIATION (Epic 3)
+// ═══════════════════════════════════════════
+// Summary chip strip from a reconciliation result.
+function reconSummaryChips(counts) {
+  const chip = (cls, icon, n, label) => `<span class="alert-chip ${cls}"><span class="chip-icon">${icon}</span><span class="chip-title">${n}</span><span class="chip-sub">· ${label}</span></span>`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    ${chip('chip-green', '✓', counts.covered || 0, 'covered')}
+    ${chip('chip-yellow', '◑', counts.partial || 0, 'partial')}
+    ${chip('chip-red', '⚠', counts.unplanned || 0, 'unplanned (missed)')}
+    ${chip('chip-blue', '＋', counts.teamAdded || 0, 'team-added')}
+    ${chip('chip-gray', '↺', counts.reinterpreted || 0, 'reinterpreted')}
+  </div>`;
+}
+
+// Two-column reconciliation: client contract scope (left) vs. team feature scope (right).
+function renderReconciliationColumns(lensBuildId) {
+  const rec = computeReconciliation(lensBuildId);
+  const lens = lensBuildId || (productLens !== 'all' ? productLens : null);
+  const feats = DB.features.filter(f => !lens || f.buildId === lens);
+
+  const left = rec.items.length ? rec.items.map(({ item, linked, status }) => `
+    <div class="recon-item">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span style="font-weight:600;color:#1E293B">${item.name}</span>
+        <span class="recon-status rs-${status}">${status}</span>
+      </div>
+      <div style="font-size:11px;color:#94A3B8;margin-top:2px">${item.source && item.source.doc ? item.source.doc : ''}${item.source && item.source.section ? ' · ' + item.source.section : ''}</div>
+      <div style="font-size:11px;color:#64748B;margin-top:2px">${linked.length ? '→ ' + linked.map(f => f.name).join(', ') : '<span style="color:#DC2626">no feature planned</span>'}</div>
+    </div>`).join('') : '<div style="font-size:12px;color:#94A3B8;padding:8px 0">No contract scope items for this product.</div>';
+
+  const right = feats.length ? feats.map(f => {
+    const teamAdded = !(f.contractScopeRefs || []).length || f.alignment === 'team-added';
+    return `<div class="recon-item" onclick="openFeatureDrawer('${f.id}')" style="cursor:pointer">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span style="font-weight:600;color:#1E293B">${f.name}</span>
+        ${teamAdded ? '<span class="recon-status rs-teamadded">team-added</span>' : (f.alignment === 'reinterpreted' ? '<span class="recon-status rs-partial">reinterpreted</span>' : '<span class="recon-status rs-covered">aligned</span>')}
+      </div>
+      <div style="font-size:11px;color:#64748B;margin-top:2px">${(f.contractScopeRefs || []).length ? '↳ covers ' + f.contractScopeRefs.length + ' contract item' + (f.contractScopeRefs.length !== 1 ? 's' : '') : '<span style="color:#4F46E5">no client mandate — margin risk</span>'}</div>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:#94A3B8;padding:8px 0">No team features for this product.</div>';
+
+  return `${reconSummaryChips(rec.counts)}
+    <div class="recon-grid">
+      <div class="recon-col"><div class="section-label" style="margin:0 0 8px">Contract Scope · client / PRD</div>${left}</div>
+      <div class="recon-col"><div class="section-label" style="margin:0 0 8px">Team Scope · product layer</div>${right}</div>
+    </div>`;
+}
+
+// Reconciliation panel inside a phase-detail Scope tab (scoped to the phase's product).
+function renderReconciliationPanel(phase) {
+  const lensBuildId = phase.productId || null;
+  const rec = computeReconciliation(lensBuildId);
+  const gaps = (rec.counts.unplanned || 0) + (rec.counts.teamAdded || 0);
+  return `<div class="panel" style="margin-top:16px">
+    <div class="panel-header">
+      <span class="panel-title">Scope Reconciliation <span class="dbdos-tag">DB DOS</span></span>
+      ${gaps ? `<span class="alert-chip chip-yellow"><span class="chip-icon">⚠</span><span class="chip-title">${gaps} gap${gaps !== 1 ? 's' : ''}</span></span>` : `<span class="alert-chip chip-green"><span class="chip-icon">✓</span><span class="chip-title">Aligned</span></span>`}
+    </div>
+    <div style="padding:14px 20px 18px">${renderReconciliationColumns(lensBuildId)}</div>
+  </div>`;
+}
+
+// ── Program-level Scope tab/page (all products, filtered by the lens) ──
+function goToScope() {
+  showPage('scope', document.getElementById('tab-scope'));
+  renderScope();
+}
+function renderScope() {
+  if (!dbdosActive()) { document.getElementById('page-scope').innerHTML = '<div class="panel"><div style="padding:24px;color:#94A3B8">Scope layer not loaded.</div></div>'; return; }
+  const rec = computeReconciliation();
+  const gaps = (rec.counts.unplanned || 0) + (rec.counts.teamAdded || 0);
+  const html = `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div>
+          <div class="detail-phase-label">Scope Certainty <span class="dbdos-tag">DB DOS</span></div>
+          <div class="detail-phase-name">Contract ↔ Team Reconciliation</div>
+          <div class="detail-phase-sub">Where the client's stated scope and the team's plan agree — and where they don't.</div>
+        </div>
+        ${gaps ? `<span class="alert-chip chip-yellow"><span class="chip-icon">⚠</span><span class="chip-title">${gaps} open gap${gaps !== 1 ? 's' : ''}</span></span>` : `<span class="alert-chip chip-green"><span class="chip-icon">✓</span><span class="chip-title">Fully aligned</span></span>`}
+      </div>
+    </div>
+    ${renderProductLens()}
+    <div class="panel" style="margin-top:16px"><div style="padding:16px 20px">${renderReconciliationColumns()}</div></div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header">
+        <span class="panel-title">Delivery Signals <span class="dbdos-tag">mock · Epic 4/5</span></span>
+        <button class="btn-secondary" onclick="loadDeliverySignals()">Pull GitHub + ProjectX signals →</button>
+      </div>
+      <div id="delivery-signals" style="padding:14px 20px 18px;font-size:13px;color:#94A3B8">
+        GitHub epic → Feature mapping and ProjectX hour attribution. Ships mock until M3 dev starts (spikes SPIKE-1/SPIKE-2). Click to load the mock passthrough.
+      </div>
+    </div>
+    <div id="change-orders-panel">${renderChangeOrders()}</div>`;
+  document.getElementById('page-scope').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// DB DOS — PASSTHROUGH + DRIFT + CHANGE ORDERS (Epics 4/5, mock)
+// ═══════════════════════════════════════════
+// Client fallback mirror of api/github's MOCK, so the demo works even on a static host
+// where /api/github isn't running.
+const MOCK_EPICS = {
+  mock: true, repo: 'dualboot-partners/m3-vetleo (mock)',
+  epics: [
+    { repo: 'm3-vetleo', number: 12, type: 'epic', title: 'Onboarding + pet profile', url: '#', state: 'open', featureId: 'vetleo-getting-started', hours: 180, tickets: ['VL-101', 'VL-102'] },
+    { repo: 'm3-vetleo', number: 15, type: 'epic', title: 'Pet history & document uploads', url: '#', state: 'open', featureId: 'vetleo-pet-history', hours: 240, tickets: ['VL-110'] },
+    { repo: 'm3-vetleo', number: 21, type: 'epic', title: 'Triage conversation + escalation', url: '#', state: 'open', featureId: 'vetleo-triage', hours: 95, tickets: ['VL-130', 'VL-131'] },
+    { repo: 'm3-vetleo', number: 33, type: 'epic', title: 'Push notifications & reminders engine', url: '#', state: 'open', featureId: null, hours: 60, tickets: ['VL-150'] },
+  ],
+};
+let ghPayload = null;
+
+async function githubFetch() {
+  try {
+    const r = await fetch(GITHUB_URL, { headers: { 'x-edit-secret': localStorage.getItem(LS_SECRET) || '' } });
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch (e) { return MOCK_EPICS; }  // static host / not configured → local mock
+}
+
+// Rollup: epics with a featureId attribute hours to that feature; unmapped epics surface
+// as candidate new scope (never silently tracked).
+function computeRollup(payload) {
+  const byFeature = {}, unmapped = [];
+  (payload.epics || []).forEach(e => {
+    if (e.featureId) byFeature[e.featureId] = (byFeature[e.featureId] || 0) + (e.hours || 0);
+    else unmapped.push(e);
+  });
+  return { byFeature, unmapped, epics: payload.epics || [], mock: payload.mock };
+}
+// Apply rolled-up actuals onto features (in-memory derived signal — not persisted).
+function applyRollup(rollup) {
+  if (!dbdosActive()) return;
+  DB.features.forEach(f => {
+    if (rollup.byFeature[f.id] != null) {
+      f.actualHours = rollup.byFeature[f.id];
+      if (f.lifecycleState === 'locked') f.lifecycleState = 'live';
+    }
+  });
+}
+
+async function loadDeliverySignals() {
+  const el = document.getElementById('delivery-signals');
+  if (el) el.innerHTML = 'Loading signals…';
+  ghPayload = await githubFetch();
+  const rollup = computeRollup(ghPayload);
+  applyRollup(rollup);
+  if (el) el.innerHTML = renderDeliverySignalsInner(rollup);
+}
+
+function renderDeliverySignalsInner(rollup) {
+  const contractType = (DB.contract || {}).contractType || 'project-based';
+  const rows = rollup.epics.map(e => {
+    const f = e.featureId ? featureById(e.featureId) : null;
+    const mapCell = f
+      ? `<span style="color:#1E293B;font-weight:500">${f.name}</span> <span class="recon-status rs-covered">mapped</span>`
+      : `<span class="recon-status rs-teamadded">unmapped</span> <button class="uc-cta full-only" style="margin-left:6px" onclick="raiseNewScope(${e.number})">Raise as new scope →</button>`;
+    return `<tr>
+      <td style="font-size:13px"><strong>#${e.number}</strong> ${e.title}<div style="font-size:11px;color:#94A3B8">tickets: ${(e.tickets || []).join(', ') || '—'}</div></td>
+      <td style="font-size:13px;color:#475569">${e.hours != null ? fmt(e.hours) + ' h' : '—'}</td>
+      <td>${mapCell}</td>
+    </tr>`;
+  }).join('');
+
+  // Per-feature drift vs baseline (only features with a locked/live baseline + actuals).
+  const drift = DB.features.filter(f => f.actualHours > 0 && f.estimate && f.estimate.pointHours != null).map(f => {
+    const over = f.actualHours > f.estimate.pointHours;
+    return `<div class="recon-item"><div style="display:flex;justify-content:space-between"><span>${f.name}</span><span style="color:${over ? '#DC2626' : '#059669'}">${fmt(f.actualHours)} / ${fmt(f.estimate.pointHours)} h</span></div></div>`;
+  }).join('') || '<div style="font-size:12px;color:#94A3B8">No locked baselines with actuals yet — lock a feature (Tollgate 2) to track drift.</div>';
+
+  return `
+    <div style="font-size:11px;color:#94A3B8;margin-bottom:10px">${rollup.mock ? 'MOCK data' : 'Live'} · contract type <strong>${contractType}</strong> — ${contractType === 'fixed-bid' ? 'any new scope re-opens with client' : 'alerts when effort trends past the contracted range'}</div>
+    <table><thead><tr><th>GitHub epic</th><th>Hours (ProjectX)</th><th>Feature mapping</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="section-label" style="margin:16px 0 6px">Per-feature drift vs baseline</div>${drift}`;
+}
+
+// Change orders (Epic 5). Raising a new-scope item creates a pending change order + a
+// draft `new`-category feature; PM resolves scope-and-pay / swap / reject.
+function renderChangeOrders() {
+  if (!dbdosActive()) return '';
+  const cos = DB.changeOrders || [];
+  if (!cos.length) return '';
+  const rows = cos.map(co => `
+    <div class="recon-item">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span style="font-weight:600;color:#1E293B">${co.notes || co.id}</span>
+        <span class="recon-status ${co.decision === 'pending' ? 'rs-partial' : (co.decision === 'rejected' ? 'rs-unplanned' : 'rs-covered')}">${co.decision}</span>
+      </div>
+      <div style="font-size:11px;color:#64748B;margin-top:2px">${co.sizeEstimateHours != null ? '~' + fmt(co.sizeEstimateHours) + ' h' : ''} · raised ${co.raisedAt ? fmtDate(co.raisedAt) : '—'}</div>
+      ${co.decision === 'pending' ? `<div class="full-only" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="uc-cta" onclick="resolveChangeOrder('${co.id}','scope-and-pay')">Scope &amp; pay</button>
+        <button class="uc-cta" onclick="resolveChangeOrder('${co.id}','swap')">Swap</button>
+        <button class="uc-cta" style="color:#DC2626" onclick="resolveChangeOrder('${co.id}','rejected')">Reject</button>
+      </div>` : ''}
+    </div>`).join('');
+  return `<div class="panel" style="margin-top:16px"><div class="panel-header"><span class="panel-title">Change Orders <span class="dbdos-tag">Epic 5</span></span></div>
+    <div style="padding:14px 20px 18px">${rows}</div></div>`;
+}
+
+function raiseNewScope(epicNumber) {
+  const e = (ghPayload && ghPayload.epics || []).find(x => x.number === epicNumber);
+  if (!e) return;
+  const co = {
+    id: 'co-' + epicNumber + '-' + (DB.changeOrders.length + 1),
+    contractId: (DB.contract || {}).id || null, buildId: null, featureRef: null,
+    sizeEstimateHours: e.hours || null, decision: 'pending', swapForFeatureId: null,
+    raisedAt: todayYMD(), resolvedAt: null, notes: `Unmapped epic #${e.number}: ${e.title}`,
+  };
+  DB.changeOrders.unshift(co);
+  const o = getOverrides();
+  if (!Array.isArray(o.changeOrders)) o.changeOrders = [];
+  o.changeOrders.unshift(co);
+  remoteSave('appendChangeOrder', { changeOrder: co });
+  logAudit({ entity: 'changeOrder', entityId: co.id, action: 'Raised (unmapped epic → new scope)' });
+  logChangelog('program', 'DB DOS', co.notes + ' → change order', ['change order raised']);
+  renderScope();
+}
+function resolveChangeOrder(id, decision) {
+  const co = (DB.changeOrders || []).find(x => x.id === id); if (!co) return;
+  co.decision = decision; co.resolvedAt = todayYMD();
+  const o = getOverrides();
+  o.changeOrders = DB.changeOrders;
+  remoteSave('appendChangeOrder', { changeOrder: co });
+  logAudit({ entity: 'changeOrder', entityId: co.id, action: 'Resolved: ' + decision });
+  renderScope();
+}
+
 function renderUpcomingDetail(phase) {
   const startStr = phase.expectedStartDate ? fmtDate(phase.expectedStartDate) : 'TBD — depends on Phase ' + (phase.number - 1) + ' completion';
-  return `
+  let html = `
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
@@ -1599,7 +2347,8 @@ function renderUpcomingDetail(phase) {
           <div class="detail-phase-name">${phase.name}</div>
           <div class="detail-phase-sub">${phase.subtitle}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${phase.gate ? gateChip(phase) : ''}
           <span class="status-badge badge-upcoming">Upcoming</span>
           <button class="pm-edit-btn full-only" style="font-size:11px" onclick="openEditPhase('${phase.id}')">Edit Phase</button>
         </div>
@@ -1636,6 +2385,15 @@ function renderUpcomingDetail(phase) {
         No milestones defined yet. ${role === 'full' ? 'Click <strong>+ Add Item</strong> to add the first one.' : 'Milestones will be added by the PM before this phase starts.'}
       </div>
     </div>`;
+
+  // DB DOS: build/discovery phases show their BET feature scope layer + reconciliation
+  // even before the phase starts (the demo's "P3 build phase shows the BET baseline").
+  if (dbdosActive() && (phase.productId || featuresForPhase(phase).length)) {
+    html += renderProductLens();
+    html += renderPhaseFeaturesPanel(phase);
+    html += renderReconciliationPanel(phase);
+  }
+  return html;
 }
 
 function renderRetainerDetail(phase) {
@@ -1700,7 +2458,8 @@ function renderActiveDetail(phase) {
         <div class="detail-header-right">
           <div class="detail-week">📅 <strong>Week ${phase.elapsedWeeks} of ${phase.totalWeeks}</strong></div>
           <div class="detail-dates">${fmtDate(phase.startDate)} → ${phase.expectedEndDate ? fmtDate(phase.expectedEndDate) : 'TBD'}</div>
-          <div style="margin-top:6px;display:flex;align-items:center;gap:10px;justify-content:flex-end">
+          <div style="margin-top:6px;display:flex;align-items:center;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+            ${phase.gate ? gateChip(phase) : ''}
             <span class="status-badge ${badgeCls}">${badgeLabel}</span>
             <button class="pm-edit-btn full-only" style="font-size:11px" onclick="openEditPhase('${phase.id}')">Edit Phase</button>
           </div>
@@ -1773,6 +2532,7 @@ function renderActiveDetail(phase) {
     <div class="subphase-tabs detail-tabs">
       <button class="subtab ${detailTab==='health'?'active':''}" onclick="setDetailTab('health')">Burn &amp; Pace</button>
       <button class="subtab ${detailTab==='timeline'?'active':''}" onclick="setDetailTab('timeline')">Timeline &amp; Milestones</button>
+      ${dbdosActive() ? `<button class="subtab ${detailTab==='scope'?'active':''}" onclick="setDetailTab('scope')">Scope &amp; Features <span class="dbdos-tag">DB DOS</span></button>` : ''}
       <button class="subtab full-only ${detailTab==='team'?'active':''}" onclick="setDetailTab('team')">Team</button>
       <button class="subtab full-only ${detailTab==='log'?'active':''}" onclick="setDetailTab('log')">Change Log</button>
     </div>`;
@@ -1780,6 +2540,7 @@ function renderActiveDetail(phase) {
   // Team/Log are leadership-only; keep team-role users on a valid tab
   let tab = detailTab;
   if ((tab === 'team' || tab === 'log') && role !== 'full') tab = 'health';
+  if (tab === 'scope' && !dbdosActive()) tab = 'health';
 
   if (tab === 'health') {
     const narrativeClass = health === 'on-track' ? 'gauge-narrative-ok' : 'gauge-narrative';
@@ -1849,6 +2610,10 @@ function renderActiveDetail(phase) {
     html += renderAssignmentRollup(phase);
   } else if (tab === 'log') {
     html += renderPhaseChangelog(phase.id);
+  } else if (tab === 'scope') {
+    html += renderGatePanel(phase);
+    html += renderPhaseFeaturesPanel(phase);
+    html += renderReconciliationPanel(phase);
   }
 
   return html;
