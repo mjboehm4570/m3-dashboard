@@ -29,6 +29,200 @@
     "driveFolderUrl": null,
     "changeOrderPolicy": "Changes require a signed Change Order; client has 10 business days to approve/reject. Backlog re-prioritization does not require a Change Order unless it materially alters product vision or team capacity."
   },
+  "brief": {
+    "headline": "Dualboot × M3 — building a unified veterinary intelligence platform: Raivan (clinical OS), VetLeo (consumer companion), and ALF (shared data fabric).",
+    "sections": [
+      {
+        "id": "project-background",
+        "title": "Project Background",
+        "group": "business",
+        "sensitivity": "full",
+        "intro": "How this engagement came to Dualboot, the strategic rationale behind it, and the organizational goals and constraints that frame delivery. The full narrative is maintained in the Knowledge Base (Layer 0 · Business).",
+        "kbRefs": [
+          {
+            "title": "Business Overview",
+            "file": "business-overview.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/business-overview.md"
+          },
+          {
+            "title": "Strategic Goals & Constraints",
+            "file": "strategic-goals-and-constraints.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/strategic-goals-and-constraints.md"
+          }
+        ]
+      },
+      {
+        "id": "buyer-background",
+        "title": "Buyer Background",
+        "group": "business",
+        "sensitivity": "full",
+        "intro": "Who the buyer is — company stage, founder background, decision-making context, and the working-style sensitivities the delivery team should understand before engaging.",
+        "kbRefs": [
+          {
+            "title": "Business Overview — Company Identity & Culture",
+            "file": "business-overview.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/business-overview.md"
+          }
+        ]
+      },
+      {
+        "id": "stakeholder-mapping",
+        "title": "Stakeholder Mapping",
+        "group": "business",
+        "sensitivity": "full",
+        "intro": "The people and decision structure on the client side — who decides what, approval paths, and the key external relationships in play.",
+        "kbRefs": [
+          {
+            "title": "Stakeholder Map",
+            "file": "stakeholder-map.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/stakeholder-map.md"
+          }
+        ]
+      },
+      {
+        "id": "product-vision",
+        "title": "Product Vision",
+        "group": "product",
+        "sensitivity": "team",
+        "intro": "What M3 is building and the role each product plays in the ecosystem. The cards below reflect the current product registry; the deeper vision narrative lives in the Knowledge Base.",
+        "kbRefs": [
+          {
+            "title": "VetLeo — Product Brief",
+            "file": "vet-leo/product-brief.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-1-product/final/vet-leo/product-brief.md"
+          },
+          {
+            "title": "Raivan — Product Brief",
+            "file": "raivan/product-brief.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-1-product/final/raivan/product-brief.md"
+          }
+        ]
+      },
+      {
+        "id": "product-concreteness",
+        "title": "How Concrete Is the Idea?",
+        "group": "product",
+        "sensitivity": "team",
+        "intro": "A read on how firm each product's definition is today — derived from feature-level confidence — surfacing where the idea is settled versus still emerging.",
+        "kbRefs": []
+      },
+      {
+        "id": "look-and-feel",
+        "title": "Look & Feel · Design Assets",
+        "group": "product",
+        "sensitivity": "team",
+        "intro": "The approved creative direction and where design assets live.",
+        "highlights": [
+          "Brand ownership transferred to Dualboot's design team (2026-07-07 branding sync); the external brand partner is now review-only.",
+          "AI persona voice — Raivan/FLO: competent, direct, trustworthy (Admiral Janeway). Leo (VetLeo): relentlessly positive + puzzle-solving + reassuring.",
+          "Leo mascot uses a flat / 2D line-art illustration style (not 3D) — chosen for animation, readability, and an approachable tone.",
+          "Approach is visual-from-day-one: directional wireframes early, with final branding dropping in progressively."
+        ],
+        "kbRefs": [
+          {
+            "title": "Design System Reference (Layer 2)",
+            "file": "design-system-reference.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-2-design/final/design-system-reference.md"
+          }
+        ]
+      },
+      {
+        "id": "feature-certainty",
+        "title": "Feature Definitions & Certainty",
+        "group": "product",
+        "sensitivity": "team",
+        "intro": "The scoping team's read on each feature: confidence level, open unknowns, delivery risk, and how it maps to the contract (aligned / reinterpreted / team-added).",
+        "kbRefs": []
+      },
+      {
+        "id": "scope-reconciliation",
+        "title": "Scope Reconciliation",
+        "group": "scope",
+        "sensitivity": "team",
+        "intro": "Where the client's stated (contract) scope and the team's working plan agree — and where they don't.",
+        "kbRefs": []
+      },
+      {
+        "id": "gaps-open-questions",
+        "title": "Open Questions & Gaps",
+        "group": "scope",
+        "sensitivity": "team",
+        "intro": "Known gaps and unresolved questions from scoping, plus the feature-level unknowns the team has flagged — surfaced so nothing hides.",
+        "kbRefs": []
+      },
+      {
+        "id": "support-docs",
+        "title": "Supporting Documentation",
+        "group": "scope",
+        "sensitivity": "team",
+        "intro": "The source material behind this brief. Full text lives in the private Knowledge Base.",
+        "kbRefs": [
+          {
+            "title": "Raivan — Competitive Landscape",
+            "file": "raivan-competitive-landscape.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/raivan-competitive-landscape.md"
+          },
+          {
+            "title": "VetLeo — Competitive Landscape",
+            "file": "vetleo-competitive-landscape.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/vetleo-competitive-landscape.md"
+          },
+          {
+            "title": "VetLeo — User Personas (Layer 1)",
+            "file": "vet-leo/user-personas.md",
+            "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-1-product/final/vet-leo/user-personas.md"
+          }
+        ]
+      }
+    ],
+    "openQuestions": [
+      {
+        "text": "Raivan scope is under active reassessment — a dedicated Raivan scoping session was requested but not yet held; treat its documented scope as provisional until it resolves.",
+        "area": "raivan",
+        "severity": "high",
+        "kbRef": {
+          "title": "Business Overview",
+          "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/business-overview.md"
+        }
+      },
+      {
+        "text": "VetLeo AI-triage safety / liability boundary is not yet defined — a blocking artifact for the triage feature.",
+        "area": "vetleo",
+        "severity": "high",
+        "kbRef": {
+          "title": "Business Overview",
+          "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/business-overview.md"
+        }
+      },
+      {
+        "text": "VetLeo go-to-market staging (geographic / metro rollout) remains open — to confirm during Discovery.",
+        "area": "vetleo",
+        "severity": "medium",
+        "kbRef": {
+          "title": "Business Overview",
+          "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/business-overview.md"
+        }
+      },
+      {
+        "text": "Stakeholder register not yet validated by the Product Director; several client-side roles remain to be confirmed.",
+        "area": "stakeholders",
+        "severity": "medium",
+        "kbRef": {
+          "title": "Stakeholder Map",
+          "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/stakeholder-map.md"
+        }
+      },
+      {
+        "text": "Several constraints (data-residency, compliance certifications, AI human-review boundaries) are flagged 'needs clarification' and unresolved.",
+        "area": "constraints",
+        "severity": "medium",
+        "kbRef": {
+          "title": "Strategic Goals & Constraints",
+          "url": "https://github.com/dualboot-partners/m3-knowledge-base/blob/main/layers/layer-0-business/final/strategic-goals-and-constraints.md"
+        }
+      }
+    ]
+  },
   "products": [
     {
       "id": "vetleo",

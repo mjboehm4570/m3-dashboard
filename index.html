@@ -550,6 +550,7 @@ tr:hover td{background:#FAFAFA}
       <div class="nav-tabs">
         <button class="nav-tab active" id="tab-overview" onclick="goToOverview()">Program Overview</button>
         <button class="nav-tab" id="tab-timeline" onclick="goToTimeline()">Timeline</button>
+        <button class="nav-tab" id="tab-brief" onclick="goToBrief()" style="display:none">Project Brief</button>
         <button class="nav-tab" id="tab-scope" onclick="goToScope()" style="display:none">Scope</button>
         <button class="nav-tab full-only" id="tab-kb" onclick="goToKB()">Knowledge Base</button>
         <button class="nav-tab" id="tab-detail" onclick="showPage('detail',this)" style="display:none">Phase Detail</button>
@@ -564,6 +565,7 @@ tr:hover td{background:#FAFAFA}
 
   <div id="page-overview" class="page active"></div>
   <div id="page-timeline" class="page"></div>
+  <div id="page-brief" class="page"></div>
   <div id="page-scope" class="page"></div>
   <div id="page-kb" class="page"></div>
   <div id="page-detail" class="page"></div>
@@ -644,6 +646,7 @@ const KB_CACHE_TTL_MS = 5 * 60 * 1000;  // 5 min
 let DB = null;                    // { client, contract, products[], contractScope[], features[], phaseGates, phaseProducts, phase0, milestoneLinks, changeOrders, audit }
 let productLens = 'all';          // program-global product dimension lens: 'all' | product id ('vetleo'/'raivan'/'alf')
 function dbdosActive() { return !!(DB && Array.isArray(DB.features)); }
+function briefActive() { return !!(dbdosActive() && DB.brief && Array.isArray(DB.brief.sections)); }
 
 // ═══════════════════════════════════════════
 // PM OVERRIDES  (server-backed via /api/state, localStorage as offline cache)
@@ -862,6 +865,8 @@ function renderProductLens() {
 function setProductLens(id) {
   productLens = id;
   if (currentPage === 'detail' && selectedPhaseId) renderDetail(selectedPhaseId);
+  else if (currentPage === 'brief') renderBrief();
+  else if (currentPage === 'scope') renderScope();
   else renderOverview();
 }
 function lensSuffix() { return (dbdosActive() && productLens !== 'all') ? ` · <span style="color:var(--indigo,#6366F1)">${productName(productLens)}</span>` : ''; }
@@ -948,6 +953,10 @@ function setRole(r) {
   // Reveal the Scope tab only when the DB DOS layer is loaded.
   const scopeTab = document.getElementById('tab-scope');
   if (scopeTab) scopeTab.style.display = dbdosActive() ? '' : 'none';
+  // Reveal the Project Brief tab when the brief scaffolding is present (team + leadership;
+  // sensitive sections inside are gated further via full-only).
+  const briefTab = document.getElementById('tab-brief');
+  if (briefTab) briefTab.style.display = briefActive() ? '' : 'none';
   renderOverview();
 }
 
@@ -1901,8 +1910,8 @@ function renderPresalesDetail(phase) {
     <div class="panel" style="margin-top:16px">
       <div class="panel-header"><span class="panel-title">Project Brief</span></div>
       <div style="padding:12px 20px 16px;font-size:13px;color:#475569">
-        Assembled from the Knowledge Base, HubSpot deal, and sales Drive.
-        <button class="uc-cta full-only" style="margin-left:6px" onclick="goToKB()">Open Knowledge Base →</button>
+        The sales-to-delivery brief and onboarding context — business background, product vision, feature certainty, and open questions.
+        <button class="uc-cta" style="margin-left:6px" onclick="goToBrief()">Open Project Brief →</button>
       </div>
     </div>
 
@@ -2204,6 +2213,211 @@ function renderScope() {
     </div>
     <div id="change-orders-panel">${renderChangeOrders()}</div>`;
   document.getElementById('page-scope').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// PROJECT BRIEF — program-level onboarding + sales brief (DB DOS)
+// ═══════════════════════════════════════════
+// Assembled from three sources, honoring the public-repo boundary:
+//   • non-sensitive scaffolding + a KB doc index from dbdos.json (DB.brief)
+//   • already-public structured data (products, features, reconciliation) for the "safe" sections
+//   • sensitive Layer-0 narrative pulled LIVE from the private KB (/api/kb), leadership-gated
+// Team role sees the safe sections; sensitive sections carry full-only (leadership only) and
+// their narrative is never baked into the public file — only KB pointers.
+function goToBrief() {
+  showPage('brief', document.getElementById('tab-brief'));
+  renderBrief();
+}
+
+function renderBrief() {
+  const page = document.getElementById('page-brief');
+  if (!briefActive()) { page.innerHTML = '<div class="panel"><div style="padding:24px;color:#94A3B8">Project brief not loaded.</div></div>'; return; }
+  const b = DB.brief;
+  const groups = [
+    { key: 'business', label: 'Business' },
+    { key: 'product',  label: 'Product' },
+    { key: 'scope',    label: 'Scope & Gaps' },
+  ];
+  let html = `
+    <div class="detail-header">
+      <div class="detail-header-top">
+        <div>
+          <div class="detail-phase-label">Project Brief <span class="dbdos-tag">DB DOS</span></div>
+          <div class="detail-phase-name">${b.headline || 'Engagement Brief'}</div>
+          <div class="detail-phase-sub">The sales-to-delivery brief and onboarding context for anyone joining the M3 engagement.</div>
+        </div>
+      </div>
+    </div>
+    ${renderProductLens()}`;
+  groups.forEach(g => {
+    const secs = b.sections.filter(s => s.group === g.key);
+    if (!secs.length) return;
+    // If every section in the group is leadership-only, gate the group label too so the
+    // team role doesn't see a header with nothing under it.
+    const labelFull = secs.every(s => s.sensitivity === 'full') ? ' full-only' : '';
+    html += `<div class="section-label${labelFull}" style="margin:22px 0 2px">${g.label}</div>`;
+    secs.forEach(s => { html += renderBriefSection(s); });
+  });
+  page.innerHTML = html;
+  hydrateBriefKB();   // leadership-only, no-op without cached KB access (graceful)
+}
+
+function renderBriefSection(s) {
+  const full = s.sensitivity === 'full';
+  const lock = full ? ` <span class="alert-chip chip-yellow" style="margin-left:6px"><span class="chip-icon">🔒</span><span class="chip-title">Leadership</span></span>` : '';
+  return `<div class="panel${full ? ' full-only' : ''}" style="margin-top:12px">
+    <div class="panel-header"><span class="panel-title">${s.title}${lock}</span></div>
+    <div style="padding:12px 20px 18px">
+      ${s.intro ? `<div style="font-size:13px;color:#475569;margin-bottom:12px">${s.intro}</div>` : ''}
+      ${briefSectionBody(s)}
+    </div>
+  </div>`;
+}
+
+function briefSectionBody(s) {
+  switch (s.id) {
+    case 'product-vision':       return briefProductVision(s);
+    case 'product-concreteness': return briefProductConcreteness(s);
+    case 'feature-certainty':    return briefFeatureCertainty(s);
+    case 'look-and-feel':        return briefLookAndFeel(s);
+    case 'scope-reconciliation': return briefReconciliation(s);
+    case 'gaps-open-questions':  return briefGaps(s);
+    case 'support-docs':         return briefSupportDocs(s);
+    default:                     return briefKbCards(s.kbRefs); // business/full: narrative lives in the KB
+  }
+}
+
+// KB doc index cards. `data-url` lets hydrateBriefKB() enrich them with live metadata
+// for leadership; team sees title + path + a link (opening requires KB access).
+function briefKbCards(refs, note) {
+  const cards = (refs || []).map(r => `
+    <div class="kb-card brief-kbcard" data-url="${r.url}">
+      <div class="kb-card-top">
+        <a class="kb-title" href="${r.url}" target="_blank" rel="noopener">${r.title}</a>
+        <a class="kb-open" href="${r.url}" target="_blank" rel="noopener">Open in KB ↗</a>
+      </div>
+      ${r.file ? `<div class="kb-path">${r.file}</div>` : ''}
+    </div>`).join('');
+  return `${cards ? `<div class="kb-grid">${cards}</div>` : ''}${note ? `<div style="font-size:11px;color:#94A3B8;margin-top:8px">${note}</div>` : ''}`;
+}
+
+function briefProductVision(s) {
+  const prods = (productLens === 'all') ? productList() : productList().filter(p => p.id === productLens);
+  if (!prods.length) return lensEmpty();
+  const rows = prods.map(p => `
+    <div style="padding:10px 0;border-bottom:1px solid #F1F5F9">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+        <span style="font-weight:600;color:#1E293B">${p.name}</span>
+        <span style="font-size:12px;color:#64748B;white-space:nowrap">${p.budgetEnvelopeHours ? fmt(p.budgetEnvelopeHours) + ' h envelope · ' : ''}<span style="text-transform:capitalize">${p.status || '—'}</span></span>
+      </div>
+      ${p.description ? `<div style="font-size:13px;color:#475569;margin-top:4px">${p.description}</div>` : ''}
+    </div>`).join('');
+  return rows + briefKbCards(s.kbRefs);
+}
+
+function briefProductConcreteness(s) {
+  const prods = (productLens === 'all') ? productList() : productList().filter(p => p.id === productLens);
+  if (!prods.length) return lensEmpty();
+  const cards = prods.map(p => {
+    const feats = DB.features.filter(f => f.buildId === p.id);
+    const n = feats.length || 1;
+    const c = { high: 0, medium: 0, low: 0 };
+    feats.forEach(f => { const l = (f.confidence || {}).level; if (c[l] != null) c[l]++; });
+    const score = Math.round((c.high * 100 + c.medium * 55 + c.low * 20) / n);
+    const seg = (val, color) => val ? `<div style="width:${(val / n) * 100}%;background:${color}"></div>` : '';
+    return `<div style="padding:12px 0;border-bottom:1px solid #F1F5F9">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <span style="font-weight:600;color:#1E293B">${p.name}</span>
+        <span style="font-size:12px;color:#64748B">${feats.length} scoped feature${feats.length !== 1 ? 's' : ''} · ~${score}% defined</span>
+      </div>
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#F1F5F9">${seg(c.high, '#10B981')}${seg(c.medium, '#F59E0B')}${seg(c.low, '#EF4444')}</div>
+      <div style="font-size:11px;color:#94A3B8;margin-top:4px">${c.high} high · ${c.medium} medium · ${c.low} low confidence</div>
+    </div>`;
+  }).join('');
+  return cards + `<div style="font-size:11px;color:#94A3B8;margin-top:10px">"Defined" is a rough index from feature-level confidence — a read on how settled each product's scope is today, not a commitment.</div>`;
+}
+
+function briefFeatureCertainty(s) {
+  const feats = featuresForLens();
+  if (!feats.length) return lensEmpty();
+  return feats.map(f => {
+    const unknowns = (f.confidence || {}).unknowns || [];
+    return `<div style="padding:10px 0;border-bottom:1px solid #F1F5F9">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="font-weight:500;color:#1E293B">${f.name}</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${confidenceTag(f)}${riskTag(f)}${alignmentTag(f)}</span>
+      </div>
+      ${unknowns.length ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:#64748B">${unknowns.map(u => `<li>${u}</li>`).join('')}</ul>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function briefLookAndFeel(s) {
+  const bullets = (s.highlights || []).map(h => `<li style="margin-bottom:5px">${h}</li>`).join('');
+  return `${bullets ? `<ul style="margin:0 0 12px;padding-left:18px;font-size:13px;color:#475569">${bullets}</ul>` : ''}${briefKbCards(s.kbRefs, 'No design files are stored in Layer 0 of the KB; the design-system reference lives in Layer 2.')}`;
+}
+
+function briefReconciliation(s) {
+  const rec = computeReconciliation();
+  const c = rec.counts || {};
+  const gaps = (c.unplanned || 0) + (c.teamAdded || 0);
+  return `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#475569;margin-bottom:12px">
+      <span><strong>${c.covered || 0}</strong> covered</span>
+      <span><strong>${c.partial || 0}</strong> partial</span>
+      <span style="color:#B45309"><strong>${c.unplanned || 0}</strong> unplanned</span>
+      <span style="color:#3730A3"><strong>${c.teamAdded || 0}</strong> team-added</span>
+      <span style="color:#92400E"><strong>${c.reinterpreted || 0}</strong> reinterpreted</span>
+    </div>
+    ${gaps ? `<span class="alert-chip chip-yellow"><span class="chip-icon">⚠</span><span class="chip-title">${gaps} open gap${gaps !== 1 ? 's' : ''}</span></span>` : `<span class="alert-chip chip-green"><span class="chip-icon">✓</span><span class="chip-title">Fully aligned</span></span>`}
+    <button class="uc-cta" style="margin-left:8px" onclick="goToScope()">Review full scope reconciliation →</button>`;
+}
+
+function briefGaps(s) {
+  const oq = DB.brief.openQuestions || [];
+  const items = oq.map(q => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #F1F5F9;font-size:13px;color:#475569">
+      <span style="color:${q.severity === 'high' ? '#DC2626' : '#F59E0B'};flex-shrink:0">⚠</span>
+      <span>${q.text}${q.kbRef ? ` <a href="${q.kbRef.url}" target="_blank" rel="noopener" style="color:#6366F1;white-space:nowrap">source ↗</a>` : ''}</span>
+    </div>`).join('');
+  const feats = featuresForLens().filter(f => ((f.confidence || {}).unknowns || []).length);
+  const featUnknowns = feats.map(f => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F1F5F9;font-size:12px">
+      <span style="font-weight:500;color:#1E293B">${f.name}</span>
+      <span style="color:#94A3B8">${f.confidence.unknowns.length} open unknown${f.confidence.unknowns.length !== 1 ? 's' : ''}</span>
+    </div>`).join('');
+  return `${items || '<div style="font-size:12px;color:#94A3B8">No open questions recorded.</div>'}
+    <div class="section-label" style="margin:16px 0 6px">Feature-level unknowns (scoping team)</div>
+    ${featUnknowns || '<div style="font-size:12px;color:#94A3B8">No feature unknowns in this view.</div>'}`;
+}
+
+function briefSupportDocs(s) {
+  // Union of every section's kbRefs + this section's own refs, de-duped by url.
+  const seen = {}, refs = [];
+  (DB.brief.sections || []).forEach(sec => (sec.kbRefs || []).forEach(r => { if (!seen[r.url]) { seen[r.url] = 1; refs.push(r); } }));
+  (s.kbRefs || []).forEach(r => { if (!seen[r.url]) { seen[r.url] = 1; refs.push(r); } });
+  return briefKbCards(refs) + `<div class="full-only" style="font-size:11px;color:#94A3B8;margin-top:8px">The full curated Knowledge Base — every layer — is in the <a href="#" onclick="goToKB();return false" style="color:#6366F1">Knowledge Base tab</a>.</div>`;
+}
+
+// Enrich the KB doc cards with live metadata (summary/status/owner/updated) from /api/kb.
+// Leadership-only, and only when KB access is already unlocked — so opening the Brief tab
+// never triggers a passphrase prompt. Any failure (e.g. KB not configured → 503) is silent:
+// the cards remain plain links.
+function hydrateBriefKB() {
+  if (role !== 'full') return;
+  if (!localStorage.getItem(LS_SECRET)) return;
+  kbFetchCached().then(data => {
+    const byUrl = {};
+    (data.layers || []).forEach(L => (L.docs || []).forEach(d => { byUrl[d.url] = d; }));
+    document.querySelectorAll('#page-brief .brief-kbcard').forEach(card => {
+      const d = byUrl[card.getAttribute('data-url')];
+      if (!d || card.querySelector('.kb-summary') || card.querySelector('.kb-meta')) return;
+      const chips = [
+        d.status ? `<span class="kb-chip ${d.status}">${d.status.replace(/_/g, ' ')}</span>` : '',
+        d.owner ? `<span class="kb-chip">${d.owner}</span>` : '',
+        d.lastUpdated ? `<span class="kb-chip">updated ${fmtDate(d.lastUpdated)}</span>` : '',
+      ].join('');
+      const add = `${d.summary ? `<div class="kb-summary">${d.summary}</div>` : ''}${chips ? `<div class="kb-meta">${chips}</div>` : ''}`;
+      if (add) card.insertAdjacentHTML('beforeend', add);
+    });
+  }).catch(() => {});
 }
 
 // ═══════════════════════════════════════════

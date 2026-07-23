@@ -83,6 +83,9 @@ function build() {
     },
     client: seed.client,
     contract: seed.contract,
+    // Non-sensitive Project Brief scaffolding (section structure + KB doc index + open
+    // questions). Narrative stays in the private KB — see the seed's _briefNote.
+    brief: seed.brief || null,
     // builds[] in the schema become the product registry (product = dimension, not a top unit).
     products: (seed.builds || []).map(b => ({ ...b })),
     contractScope: seed.contractScope || [],
