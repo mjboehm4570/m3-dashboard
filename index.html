@@ -9,6 +9,8 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
+<!-- Markdown renderer for embedded KB documents in the Project Brief (trusted, private KB content). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <!--
   DATA: reads from ./data.json on load
   AUTH: two passwords — TEAM_PW (summary) and FULL_PW (drill-down)
@@ -506,6 +508,36 @@ tr:hover td{background:#FAFAFA}
 .text-muted{color:#94A3B8}
 .text-sm{font-size:12px}
 .fw-bold{font-weight:700}
+
+/* ─── PROJECT BRIEF — embedded KB documents ─── */
+.brief-doc{border:1px solid #E2E8F0;border-radius:10px;background:#fff;margin-bottom:12px;overflow:hidden}
+.brief-doc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 16px;background:#F8FAFC;border-bottom:1px solid #EEF2F6}
+.brief-doc-title{font-size:13px;font-weight:700;color:#1E293B}
+.brief-doc-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.brief-doc-body{padding:0 20px}
+.brief-doc-body.empty{padding:14px 20px;font-size:12px;color:#94A3B8}
+.brief-doc-body.collapsed{max-height:440px;overflow:hidden;position:relative}
+.brief-doc-body.collapsed::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;background:linear-gradient(to bottom,rgba(255,255,255,0),#fff)}
+.brief-doc-toggle{display:block;width:100%;text-align:center;padding:8px;font-size:12px;font-weight:600;color:#6366F1;background:#F8FAFC;border:none;border-top:1px solid #EEF2F6;cursor:pointer}
+.brief-doc-toggle:hover{background:#F1F5F9}
+/* Rendered-markdown typography (scoped so it can't leak into the rest of the app). */
+.brief-md{font-size:13.5px;line-height:1.65;color:#334155}
+.brief-md h1{font-size:19px;font-weight:800;color:#0F172A;margin:18px 0 8px}
+.brief-md h2{font-size:16px;font-weight:700;color:#0F172A;margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid #EEF2F6}
+.brief-md h3{font-size:14px;font-weight:700;color:#1E293B;margin:16px 0 6px}
+.brief-md p{margin:8px 0}
+.brief-md ul,.brief-md ol{margin:8px 0;padding-left:22px}
+.brief-md li{margin:3px 0}
+.brief-md a{color:#6366F1;text-decoration:none}
+.brief-md a:hover{text-decoration:underline}
+.brief-md code{background:#F1F5F9;border-radius:4px;padding:1px 5px;font-size:12px;font-family:ui-monospace,Menlo,monospace}
+.brief-md pre{background:#0F172A;color:#E2E8F0;border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:12px;line-height:1.5}
+.brief-md pre code{background:none;color:inherit;padding:0}
+.brief-md blockquote{margin:10px 0;padding:6px 14px;border-left:3px solid #C7D2FE;background:#F5F7FF;color:#475569;border-radius:0 6px 6px 0}
+.brief-md table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.5px;display:block;overflow-x:auto}
+.brief-md th,.brief-md td{border:1px solid #E2E8F0;padding:6px 10px;text-align:left;vertical-align:top}
+.brief-md th{background:#F8FAFC;font-weight:700;color:#1E293B}
+.brief-md hr{border:none;border-top:1px solid #EEF2F6;margin:16px 0}
 </style>
 </head>
 <body>
@@ -2259,7 +2291,8 @@ function renderBrief() {
     secs.forEach(s => { html += renderBriefSection(s); });
   });
   page.innerHTML = html;
-  hydrateBriefKB();   // leadership-only, no-op without cached KB access (graceful)
+  hydrateBriefKB();     // enrich link-cards with live metadata (leadership + KB access)
+  hydrateBriefDocs();   // auto-load embedded KB narrative for leadership (graceful otherwise)
 }
 
 function renderBriefSection(s) {
@@ -2283,7 +2316,7 @@ function briefSectionBody(s) {
     case 'scope-reconciliation': return briefReconciliation(s);
     case 'gaps-open-questions':  return briefGaps(s);
     case 'support-docs':         return briefSupportDocs(s);
-    default:                     return briefKbCards(s.kbRefs); // business/full: narrative lives in the KB
+    default:                     return briefEmbeddedDocs(s.kbRefs, s.id); // business/full: KB narrative read in-app
   }
 }
 
@@ -2418,6 +2451,112 @@ function hydrateBriefKB() {
       if (add) card.insertAdjacentHTML('beforeend', add);
     });
   }).catch(() => {});
+}
+
+// ─── Embedded KB documents (Project Brief) ───
+// The Business sections render the actual KB narrative inline instead of linking out.
+// Content is pulled live from the private KB via /api/kb?path=… (gated by the access
+// secret), so nothing sensitive is committed to this public repo.
+let kbDocCache = {};   // repoPath → parsed doc (avoids refetching within a session)
+
+// The repo path (layers/…/final/foo.md) is derivable from the GitHub blob URL the
+// brief already stores — no extra seed field needed.
+function kbRepoPathFromUrl(url) {
+  const m = (url || '').match(/\/blob\/[^/]+\/(.+)$/);
+  return m ? m[1] : null;
+}
+
+async function kbDocFetch(repoPath) {
+  if (kbDocCache[repoPath]) return kbDocCache[repoPath];
+  const send = secret => fetch(KB_URL + '?path=' + encodeURIComponent(repoPath), { headers: { 'x-edit-secret': secret || '' } });
+  let r = await send(localStorage.getItem(LS_SECRET));
+  if (r.status === 401) {
+    const secret = prompt('Enter the access passphrase to load the knowledge base:');
+    if (!secret) { const e = new Error('secret required'); e.code = 401; throw e; }
+    localStorage.setItem(LS_SECRET, secret);
+    r = await send(secret);
+  }
+  if (!r.ok) { const e = new Error('http ' + r.status); e.code = r.status; throw e; }
+  const doc = await r.json();
+  kbDocCache[repoPath] = doc;
+  return doc;
+}
+
+function renderMarkdown(md) {
+  if (window.marked && md) {
+    try { return `<div class="brief-md">${marked.parse(md)}</div>`; } catch (e) {}
+  }
+  return `<div class="brief-md"><pre style="white-space:pre-wrap">${escapeHtml(md || '')}</pre></div>`;
+}
+
+// Unique per (section, file) — the same KB doc can back more than one section, so the
+// section id keeps the DOM ids distinct.
+function briefDocId(r, sectionId) { return ('briefdoc-' + (sectionId || '') + '-' + (r.file || r.title || '')).replace(/[^a-z0-9]+/gi, '-').toLowerCase(); }
+
+// A reader block per referenced doc: header (title + actions) over a body that loads on
+// demand. Leadership auto-loads via hydrateBriefDocs(); others get a "Read in app" button.
+function briefEmbeddedDocs(refs, sectionId) {
+  const blocks = (refs || []).map(r => {
+    const p = kbRepoPathFromUrl(r.url) || '';
+    const id = briefDocId(r, sectionId);
+    return `<div class="brief-doc" data-path="${p}" data-docid="${id}">
+      <div class="brief-doc-head">
+        <span class="brief-doc-title">${r.title}</span>
+        <span class="brief-doc-actions">
+          <button class="uc-cta brief-doc-load" onclick="loadBriefDoc('${id}')">Read in app</button>
+          <a class="kb-open" href="${r.url}" target="_blank" rel="noopener">GitHub ↗</a>
+        </span>
+      </div>
+      <div class="brief-doc-body empty" id="${id}">Not loaded yet.</div>
+    </div>`;
+  }).join('');
+  return blocks || '<div style="font-size:12px;color:#94A3B8">No documents linked.</div>';
+}
+
+function loadBriefDoc(id) {
+  const wrap = document.querySelector(`.brief-doc[data-docid="${id}"]`);
+  if (!wrap) return;
+  const body = document.getElementById(id);
+  const path = wrap.getAttribute('data-path');
+  if (!path) { body.className = 'brief-doc-body empty'; body.textContent = 'Document path unavailable.'; return; }
+  body.className = 'brief-doc-body empty'; body.textContent = 'Loading…';
+  kbDocFetch(path).then(doc => {
+    const meta = [doc.owner, doc.status && doc.status.replace(/_/g, ' '), doc.lastUpdated ? 'updated ' + fmtDate(doc.lastUpdated) : '']
+      .filter(Boolean).join(' · ');
+    body.className = 'brief-doc-body';
+    body.innerHTML = (meta ? `<div style="font-size:11px;color:#94A3B8;padding:12px 0 0">${meta}</div>` : '') + renderMarkdown(doc.body);
+    const loadBtn = wrap.querySelector('.brief-doc-load');
+    if (loadBtn) loadBtn.remove();
+    // Collapse long docs behind an Expand toggle. Measured synchronously (reading
+    // scrollHeight forces a reflow) rather than via rAF, which throttles in background tabs.
+    if (body.scrollHeight > 500 && !wrap.querySelector('.brief-doc-toggle')) {
+      body.classList.add('collapsed');
+      const btn = document.createElement('button');
+      btn.className = 'brief-doc-toggle';
+      btn.textContent = 'Expand full document ↓';
+      btn.onclick = () => {
+        const c = body.classList.toggle('collapsed');
+        btn.textContent = c ? 'Expand full document ↓' : 'Collapse ↑';
+      };
+      wrap.appendChild(btn);
+    }
+  }).catch(err => {
+    body.className = 'brief-doc-body empty';
+    if (err.code === 503) body.innerHTML = 'Knowledge base isn’t configured yet — set <code>KB_REPO_TOKEN</code> in Vercel to read documents in-app.';
+    else if (err.code === 401) body.textContent = 'Access passphrase required to read this document in-app.';
+    else body.textContent = 'Could not load this document (' + (err.message || 'error') + ').';
+  });
+}
+
+// Auto-load embedded docs for leadership once KB access is unlocked — so the Brief tab
+// reads as a document, not a set of buttons. Never prompts on open (only when a secret is
+// already cached); team / locked users keep the manual "Read in app" button.
+function hydrateBriefDocs() {
+  if (role !== 'full') return;
+  if (!localStorage.getItem(LS_SECRET)) return;
+  document.querySelectorAll('#page-brief .brief-doc').forEach(wrap => {
+    if (wrap.getAttribute('data-path')) loadBriefDoc(wrap.getAttribute('data-docid'));
+  });
 }
 
 // ═══════════════════════════════════════════

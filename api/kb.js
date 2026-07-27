@@ -1,8 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // api/kb.js — serverless read-only proxy for the private knowledge-base repo.
 //
-//   GET /api/kb → returns curated (final/) KB docs grouped by layer, with
-//                 title / owner / status / last-updated / summary / GitHub link.
+//   GET /api/kb            → curated (final/) KB docs grouped by layer, with
+//                            title / owner / status / last-updated / summary / GitHub link.
+//   GET /api/kb?path=<p>    → a single doc (same fields) PLUS its full markdown
+//                            `body` (frontmatter stripped), for in-app reading.
+//                            `p` is validated against the final/*.md allowlist,
+//                            so the proxy can never read arbitrary repo files.
 //
 // The KB repo is PRIVATE and confidential; m3-dashboard is a PUBLIC repo, so we
 // never commit KB content. This reads it live with a server-side token and
@@ -43,12 +47,12 @@ async function listFinalDocs() {
     .filter(p => !/_example/i.test(p));
 }
 
-async function fetchDoc(path) {
+async function fetchDoc(path, includeBody) {
   const r = await gh(`/repos/${REPO}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}?ref=${BRANCH}`);
   if (!r.ok) return null;
   const j = await r.json();
   const text = Buffer.from(j.content || '', 'base64').toString('utf8');
-  return parseDoc(text, path);
+  return parseDoc(text, path, includeBody);
 }
 
 function layerKeyOf(path) {
@@ -64,7 +68,7 @@ function layerNum(key) {
   return m ? parseInt(m[1], 10) : 99;
 }
 
-function parseDoc(text, path) {
+function parseDoc(text, path, includeBody) {
   const lines = text.split(/\r?\n/);
   const head = lines.slice(0, 25);
   const grab = key => {
@@ -91,7 +95,7 @@ function parseDoc(text, path) {
   summary = summary.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[*_`]/g, '');
   if (summary.length > 240) summary = summary.slice(0, 237) + '…';
 
-  return {
+  const doc = {
     title,
     path,
     relPath: path.replace(/^layers\/layer-\d+-[^/]+\/final\//, ''),
@@ -101,7 +105,25 @@ function parseDoc(text, path) {
     summary,
     url: `https://github.com/${REPO}/blob/${BRANCH}/${path}`,
   };
+  if (includeBody) {
+    // Body = everything from the first `# ` heading onward (skips the irregular
+    // frontmatter block the finals carry). No heading → strip a leading ---…---
+    // fence if present, else keep the whole file.
+    let start = firstHeadingIdx;
+    if (start < 0) {
+      start = 0;
+      if ((lines[0] || '').trim() === '---') {
+        const close = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+        if (close > 0) start = close + 1;
+      }
+    }
+    doc.body = lines.slice(start).join('\n').trim();
+  }
+  return doc;
 }
+
+// Only final/*.md docs are readable through the proxy (never arbitrary repo files).
+const DOC_PATH_RE = /^layers\/layer-\d+-[^/]+\/final\/.+\.md$/;
 
 async function pool(items, size, fn) {
   const out = [];
@@ -124,6 +146,18 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Single-doc mode: return one doc with its full markdown body for in-app reading.
+    const wantPath = (req.query && (req.query.path || req.query.doc)) || '';
+    if (wantPath) {
+      if (!DOC_PATH_RE.test(wantPath) || /_example/i.test(wantPath)) {
+        return res.status(400).json({ error: 'Invalid doc path' });
+      }
+      const doc = await fetchDoc(wantPath, true);
+      if (!doc) return res.status(404).json({ error: 'Doc not found' });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json(doc);
+    }
+
     const paths = await listFinalDocs();
     const docs = (await pool(paths, 8, fetchDoc)).filter(Boolean);
     const byKey = {};
