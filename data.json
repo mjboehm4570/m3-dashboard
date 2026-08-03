@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-02T11:51:14.419Z",
+  "lastUpdated": "2026-08-03T13:32:29.854Z",
   "program": {
     "name": "M3 Engagement",
     "client": "M3",
@@ -22,7 +22,7 @@
       "totalWeeks": 14,
       "elapsedWeeks": 7,
       "budgetHours": 1765,
-      "usedHours": 611,
+      "usedHours": 600,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
@@ -38,16 +38,16 @@
           "taskId": 280,
           "name": "Discovery VetLeo",
           "label": "1A",
-          "usedHours": 454,
-          "weekHours": 42
+          "usedHours": 443,
+          "weekHours": 0
         },
         {
           "id": "1b",
           "taskId": 285,
           "name": "Discovery Raivan",
           "label": "1B",
-          "usedHours": 157,
-          "weekHours": 18
+          "usedHours": 156,
+          "weekHours": 0
         }
       ],
       "staff": [
@@ -56,11 +56,11 @@
           "name": "Mike B.",
           "role": "Product Director",
           "hoursThisWeek": 0,
-          "hoursTotal": 29,
+          "hoursTotal": 36,
           "hoursAllocated": 210,
           "subphaseHours": {
-            "1a": 17,
-            "1b": 12
+            "1a": 18,
+            "1b": 18
           },
           "subphaseWeekHours": {
             "1a": 6,
@@ -87,12 +87,12 @@
           "id": "kevinm",
           "name": "Kevin M.",
           "role": "UX Design Lead",
-          "hoursThisWeek": 7,
-          "hoursTotal": 43,
+          "hoursThisWeek": 0,
+          "hoursTotal": 53,
           "hoursAllocated": 350,
           "subphaseHours": {
-            "1a": 23,
-            "1b": 20
+            "1a": 30,
+            "1b": 23
           },
           "subphaseWeekHours": {
             "1a": 1,
@@ -103,12 +103,12 @@
           "id": "tereg",
           "name": "Tere G.",
           "role": "Product Designer",
-          "hoursThisWeek": 14,
-          "hoursTotal": 136,
+          "hoursThisWeek": 0,
+          "hoursTotal": 137,
           "hoursAllocated": 315,
           "subphaseHours": {
-            "1a": 96,
-            "1b": 41
+            "1a": 100,
+            "1b": 38
           },
           "subphaseWeekHours": {
             "1a": 4,
@@ -120,11 +120,11 @@
           "name": "Rodri L.",
           "role": "Tech Lead / Arch.",
           "hoursThisWeek": 0,
-          "hoursTotal": 62,
+          "hoursTotal": 60,
           "hoursAllocated": 210,
           "subphaseHours": {
             "1a": 26,
-            "1b": 36
+            "1b": 34
           },
           "subphaseWeekHours": {
             "1a": 11,
@@ -152,10 +152,10 @@
           "name": "Ignacio D.",
           "role": "Designer",
           "hoursThisWeek": 0,
-          "hoursTotal": 40,
+          "hoursTotal": 36,
           "hoursAllocated": 0,
           "subphaseHours": {
-            "1a": 40,
+            "1a": 36,
             "1b": 0
           },
           "subphaseWeekHours": {
@@ -167,11 +167,11 @@
           "id": "luciac",
           "name": "Lucia C.",
           "role": "Designer",
-          "hoursThisWeek": 38,
-          "hoursTotal": 251,
+          "hoursThisWeek": 0,
+          "hoursTotal": 232,
           "hoursAllocated": 0,
           "subphaseHours": {
-            "1a": 251,
+            "1a": 232,
             "1b": 0
           },
           "subphaseWeekHours": {
@@ -184,11 +184,11 @@
           "name": "Rafael T.",
           "role": "Team Member",
           "hoursThisWeek": 0,
-          "hoursTotal": 23,
+          "hoursTotal": 35,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
-            "1b": 23
+            "1b": 35
           },
           "subphaseWeekHours": {
             "1a": 0,
@@ -200,11 +200,11 @@
           "name": "Nicolas C.",
           "role": "Team Member",
           "hoursThisWeek": 0,
-          "hoursTotal": 26,
+          "hoursTotal": 9,
           "hoursAllocated": 0,
           "subphaseHours": {
             "1a": 0,
-            "1b": 26
+            "1b": 9
           },
           "subphaseWeekHours": {
             "1a": 0,
@@ -215,12 +215,12 @@
           "id": "kevin.white",
           "name": "Kevin W.",
           "role": "Team Member",
-          "hoursThisWeek": 7,
-          "hoursTotal": 43,
+          "hoursThisWeek": 0,
+          "hoursTotal": 53,
           "hoursAllocated": 0,
           "subphaseHours": {
-            "1a": 23,
-            "1b": 20
+            "1a": 30,
+            "1b": 23
           },
           "subphaseWeekHours": {
             "1a": 1,
@@ -339,211 +339,215 @@
         },
         {
           "date": "2026-06-12",
-          "usedHours": 59
+          "usedHours": 67
         },
         {
           "date": "2026-06-13",
-          "usedHours": 59
+          "usedHours": 67
         },
         {
           "date": "2026-06-14",
-          "usedHours": 59
+          "usedHours": 67
         },
         {
           "date": "2026-06-15",
-          "usedHours": 66.5
+          "usedHours": 74.5
         },
         {
           "date": "2026-06-16",
-          "usedHours": 73
+          "usedHours": 84
         },
         {
           "date": "2026-06-17",
-          "usedHours": 86
+          "usedHours": 97
         },
         {
           "date": "2026-06-18",
-          "usedHours": 94.3
+          "usedHours": 105.3
         },
         {
           "date": "2026-06-19",
-          "usedHours": 100.3
+          "usedHours": 111.3
         },
         {
           "date": "2026-06-20",
-          "usedHours": 100.3
+          "usedHours": 111.3
         },
         {
           "date": "2026-06-21",
-          "usedHours": 100.3
+          "usedHours": 111.3
         },
         {
           "date": "2026-06-22",
-          "usedHours": 109.3
+          "usedHours": 124.3
         },
         {
           "date": "2026-06-23",
-          "usedHours": 123.3
+          "usedHours": 142.3
         },
         {
           "date": "2026-06-24",
-          "usedHours": 136.8
+          "usedHours": 159.8
         },
         {
           "date": "2026-06-25",
-          "usedHours": 147
+          "usedHours": 174
         },
         {
           "date": "2026-06-26",
-          "usedHours": 157.5
+          "usedHours": 188.5
         },
         {
           "date": "2026-06-27",
-          "usedHours": 157.5
+          "usedHours": 188.5
         },
         {
           "date": "2026-06-28",
-          "usedHours": 157.5
+          "usedHours": 188.5
         },
         {
           "date": "2026-06-29",
-          "usedHours": 168.5
+          "usedHours": 207.5
         },
         {
           "date": "2026-06-30",
-          "usedHours": 181.5
+          "usedHours": 225
         },
         {
           "date": "2026-07-01",
-          "usedHours": 197
+          "usedHours": 237
         },
         {
           "date": "2026-07-02",
-          "usedHours": 214.8
+          "usedHours": 262.5
         },
         {
           "date": "2026-07-03",
-          "usedHours": 234.3
+          "usedHours": 293.5
         },
         {
           "date": "2026-07-04",
-          "usedHours": 234.3
+          "usedHours": 293.5
         },
         {
           "date": "2026-07-05",
-          "usedHours": 234.3
+          "usedHours": 293.5
         },
         {
           "date": "2026-07-06",
-          "usedHours": 250.8
+          "usedHours": 311
         },
         {
           "date": "2026-07-07",
-          "usedHours": 268.3
+          "usedHours": 329.5
         },
         {
           "date": "2026-07-08",
-          "usedHours": 282.3
+          "usedHours": 351.5
         },
         {
           "date": "2026-07-09",
-          "usedHours": 293.3
+          "usedHours": 363.5
         },
         {
           "date": "2026-07-10",
-          "usedHours": 301.8
+          "usedHours": 375
         },
         {
           "date": "2026-07-11",
-          "usedHours": 301.8
+          "usedHours": 375
         },
         {
           "date": "2026-07-12",
-          "usedHours": 301.8
+          "usedHours": 375
         },
         {
           "date": "2026-07-13",
-          "usedHours": 323.3
+          "usedHours": 384
         },
         {
           "date": "2026-07-14",
-          "usedHours": 352.3
+          "usedHours": 411.5
         },
         {
           "date": "2026-07-15",
-          "usedHours": 378.8
+          "usedHours": 426
         },
         {
           "date": "2026-07-16",
-          "usedHours": 400.3
+          "usedHours": 431
         },
         {
           "date": "2026-07-17",
-          "usedHours": 412.3
+          "usedHours": 435
         },
         {
           "date": "2026-07-18",
-          "usedHours": 412.3
+          "usedHours": 435
         },
         {
           "date": "2026-07-19",
-          "usedHours": 412.3
+          "usedHours": 435
         },
         {
           "date": "2026-07-20",
-          "usedHours": 430.5
+          "usedHours": 438.8
         },
         {
           "date": "2026-07-21",
-          "usedHours": 453.5
+          "usedHours": 449.8
         },
         {
           "date": "2026-07-22",
-          "usedHours": 457.5
+          "usedHours": 460.8
         },
         {
           "date": "2026-07-23",
-          "usedHours": 473.5
+          "usedHours": 471.8
         },
         {
           "date": "2026-07-24",
-          "usedHours": 480
+          "usedHours": 478.3
         },
         {
           "date": "2026-07-25",
-          "usedHours": 480
+          "usedHours": 478.3
         },
         {
           "date": "2026-07-26",
-          "usedHours": 480
+          "usedHours": 478.3
         },
         {
           "date": "2026-07-27",
-          "usedHours": 492.8
+          "usedHours": 489
         },
         {
           "date": "2026-07-28",
-          "usedHours": 507.8
+          "usedHours": 502
         },
         {
           "date": "2026-07-29",
-          "usedHours": 519.8
+          "usedHours": 510
         },
         {
           "date": "2026-07-30",
-          "usedHours": 530.5
+          "usedHours": 520.8
         },
         {
           "date": "2026-07-31",
-          "usedHours": 539
+          "usedHours": 529.3
         },
         {
           "date": "2026-08-01",
-          "usedHours": 539
+          "usedHours": 529.3
         },
         {
           "date": "2026-08-02",
-          "usedHours": 539
+          "usedHours": 529.3
+        },
+        {
+          "date": "2026-08-03",
+          "usedHours": 529.3
         }
       ]
     },
@@ -594,7 +598,7 @@
       "totalWeeks": 16,
       "elapsedWeeks": 0,
       "budgetHours": 3529,
-      "usedHours": 5,
+      "usedHours": 6,
       "concurrentWith": "phase2",
       "alertThresholds": {
         "warnPct": 80,
@@ -625,7 +629,7 @@
       "totalWeeks": 22,
       "elapsedWeeks": 0,
       "budgetHours": 10588,
-      "usedHours": 7,
+      "usedHours": 5,
       "concurrentWith": null,
       "alertThresholds": {
         "warnPct": 80,
